@@ -173,7 +173,9 @@ export default function Home() {
   useEffect(() => {
     if (appScreen !== 'workspace' || projects.length === 0) return;
     const timer = setTimeout(() => {
-      saveToIDB({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations, annotationHistories, chatHistory, promptConfig }).catch(()=>{});
+      // Strip candidatePositions sebelum menyimpan ke IDB agar basis data tetap ramping
+      const leanAnnotations = annotations.map(({ candidatePositions: _cp, ...rest }) => rest);
+      saveToIDB({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations: leanAnnotations, annotationHistories, chatHistory, promptConfig }).catch(()=>{});
     }, 2000);
     return () => clearTimeout(timer);
   }, [appScreen, projects, projectParameters, documents, textChunks, macroThemes, codes, annotations, annotationHistories, chatHistory, promptConfig]);
@@ -2069,28 +2071,53 @@ export default function Home() {
                   const before = chunk?.content.substring(Math.max(0, pos - 40), pos) || '';
                   const after = chunk?.content.substring(pos + resolvingAnn.quote.length, pos + resolvingAnn.quote.length + 40) || '';
                   const isCurrentPos = pos === resolvingAnn.startIndex;
-                  return (
+                  return (() => {
+                    const isOccupied = annotations.some(a => a.id !== resolvingAnn.id && a.chunkId === resolvingAnn.chunkId && a.startIndex === pos);
+                    return (
                     <div
                       key={pos}
                       onClick={() => {
+                        if (isOccupied) {
+                          alert('⚠️ Posisi ini sudah ditempati oleh anotasi lain di segmen yang sama. Pilih lokasi lain.');
+                          return;
+                        }
                         setAnnotations(prev => prev.map(a => a.id === resolvingAnn.id
                           ? {...a, startIndex: pos, endIndex: pos + resolvingAnn.quote.length, ambiguous: false, candidatePositions: undefined}
                           : a
                         ));
                         setResolvingAnn(null);
-                        // Scroll ke lokasi terpilih
                         setTimeout(() => document.getElementById(`ann-${resolvingAnn.id}`)?.scrollIntoView({behavior:'smooth', block:'center'}), 200);
                       }}
                       style={{padding:'0.8rem 1rem', backgroundColor: isCurrentPos ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)', border: isCurrentPos ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.07)', borderRadius:'8px', cursor:'pointer', transition:'all 0.15s'}}
                     >
-                      <div style={{fontSize:'0.7rem', color:'var(--text-secondary)', marginBottom:'0.4rem'}}>Lokasi {i + 1} (karakter {pos}) {isCurrentPos && <span style={{color:'#f59e0b'}}> ← Posisi saat ini</span>}</div>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.4rem'}}>
+                        <div style={{fontSize:'0.7rem', color:'var(--text-secondary)'}}>
+                          Lokasi {i + 1} &nbsp;·&nbsp; karakter {pos}
+                          {isCurrentPos && <span style={{color:'#f59e0b'}}> ← Posisi saat ini</span>}
+                          {isOccupied && <span style={{color:'#ef4444'}}> ⛔ Terpakai</span>}
+                        </div>
+                        {/* Skor relevansi semantik lokal: overlap kata kunci rationale vs konteks sekitar */}
+                        {(() => {
+                          const rationaleWords = new Set((resolvingAnn.rationale || '').toLowerCase().match(/\b\w{4,}\b/g) || []);
+                          const ctx = chunk?.content.substring(Math.max(0, pos - 150), pos + resolvingAnn.quote.length + 150).toLowerCase() || '';
+                          const matchCount = [...rationaleWords].filter(w => ctx.includes(w)).length;
+                          const score = rationaleWords.size > 0 ? Math.round((matchCount / rationaleWords.size) * 100) : 0;
+                          const color = score >= 60 ? '#86efac' : score >= 30 ? '#fcd34d' : '#fca5a5';
+                          return rationaleWords.size > 0 ? (
+                            <span style={{fontSize:'0.68rem', padding:'0.1rem 0.5rem', borderRadius:'999px', backgroundColor:`${color}20`, color, border:`1px solid ${color}50`, fontWeight:'600'}}>
+                              🎯 Relevansi {score}%
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       <div style={{fontSize:'0.82rem', lineHeight:'1.7', color:'#e2e8f0', fontFamily:'monospace'}}>
                         <span style={{color:'var(--text-secondary)', opacity:0.7}}>{before.length === 40 ? '...' : ''}{before}</span>
                         <mark style={{backgroundColor:'rgba(245,158,11,0.35)', color:'#fde68a', padding:'0.1rem 0'}}>{resolvingAnn.quote}</mark>
                         <span style={{color:'var(--text-secondary)', opacity:0.7}}>{after}{after.length === 40 ? '...' : ''}</span>
                       </div>
                     </div>
-                  );
+                    );
+                  })();
                 })}
               </div>
               <div style={{marginTop:'1rem', display:'flex', justifyContent:'flex-end'}}>
