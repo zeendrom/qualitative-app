@@ -9,7 +9,7 @@ interface AppDocument { id: string; projectId: string; title: string; content: s
 interface TextChunk { id: string; documentId: string; sequenceNum: number; content: string; startIndex: number; endIndex: number; }
 interface MacroTheme { id: string; projectId: string; name: string; }
 interface Code { id: string; projectId: string; themeId?: string; name: string; color: string; description?: string; }
-interface Annotation { id: string; chunkId: string; codeId?: string; parameterVersionId: string; quote: string; rationale: string; createdBy: 'AI' | 'MANUAL'; startIndex: number; endIndex: number; }
+interface Annotation { id: string; chunkId: string; codeId?: string; parameterVersionId: string; quote: string; rationale: string; createdBy: 'AI' | 'MANUAL'; startIndex: number; endIndex: number; ambiguous?: boolean; }
 interface AnnotationHistory { id: string; annotationId: string; oldRationale: string; newRationale: string; changedAt: string; }
 
 type ChatMessage = { role: 'user' | 'ai'; content: string; };
@@ -519,6 +519,27 @@ export default function Home() {
                                 if (bestMatch) {
                                     localStart = bestMatch.index;
                                     qText = bestMatch[0]; // Pulihkan struktur whitespace aslinya
+                                    // Hitung sisa kemunculan valid untuk menentukan ambiguitas
+                                    let extraCount = 0;
+                                    let nextMatch: RegExpExecArray | null;
+                                    while ((nextMatch = globalRegex.exec(chunk.content)) !== null) {
+                                        if (!usedOffsets.has(nextMatch.index)) extraCount++;
+                                    }
+                                    if (extraCount > 0) {
+                                        // Tandai sebagai ambigu — ada >1 kandidat lokasi yang tidak bisa dibedakan
+                                        let existingCodeAmb = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
+                                        if (!existingCodeAmb) {
+                                            existingCodeAmb = { id: crypto.randomUUID(), projectId: projId, name: oc.code_name, color: COLORS[newCodes.length % COLORS.length], description: oc.rationale };
+                                            newCodes.push(existingCodeAmb);
+                                        }
+                                        newAnns.push({
+                                            id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCodeAmb.id, parameterVersionId: activeProtocol?.id || 'orphan',
+                                            quote: qText, rationale: oc.rationale, createdBy: 'AI',
+                                            startIndex: localStart, endIndex: localStart + qText.length,
+                                            ambiguous: true
+                                        });
+                                        return; // Skip blok dedup normal
+                                    }
                                 }
                             } catch (e) {}
                         }
@@ -1469,8 +1490,18 @@ export default function Home() {
           <div className="text-content-wrapper">
              <h1>{currentDoc.title}</h1>
              <hr style={{borderColor:'var(--border-color)', margin:'1rem 0'}}/>
+             {/* Banner peringatan khusus untuk anotasi yang perlu divalidasi */}
+             {annotations.some(a => a.ambiguous && textChunks.find(tc => tc.id === a.chunkId)?.documentId === currentDoc.id) && (
+               <div style={{backgroundColor:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.4)', borderRadius:'8px', padding:'0.8rem 1rem', marginBottom:'1.5rem', display:'flex', alignItems:'flex-start', gap:'0.8rem', fontSize:'0.82rem'}}>
+                 <span style={{fontSize:'1.2rem', flexShrink:0}}>⚠️</span>
+                 <div>
+                   <div style={{fontWeight:'700', color:'#f59e0b', marginBottom:'0.3rem'}}>Validasi Diperlukan</div>
+                   <div style={{color:'var(--text-secondary)', lineHeight:'1.6'}}>Terdapat <strong style={{color:'#fbbf24'}}>{annotations.filter(a => a.ambiguous && textChunks.find(tc => tc.id === a.chunkId)?.documentId === currentDoc.id).length} kutipan</strong> yang tersorot di posisi ambigu (kutipan serupa muncul di beberapa lokasi). Klik lencana ⚠️ pada teks yang tersorot untuk mengkonfirmasi atau menghapus penyorotan tersebut.</div>
+                 </div>
+               </div>
+             )}
              {textChunks.filter(c => c.documentId === currentDoc.id).sort((a,b)=>a.sequenceNum - b.sequenceNum).map((chunk) => {
-               let renderElements = [];
+               let renderElements: React.ReactNode[] = [];
                const cAnns = annotations.filter(a => a.chunkId === chunk.id).sort((a,b) => a.startIndex - b.startIndex);
                if (cAnns.length === 0) { renderElements.push(<span key="full">{chunk.content}</span>); }
                else {
@@ -1478,12 +1509,36 @@ export default function Home() {
                  cAnns.forEach((ann, idx) => {
                    if (ann.startIndex > lastIdx) renderElements.push(<span key={`text-${idx}`}>{chunk.content.substring(lastIdx, ann.startIndex)}</span>);
                    const code = codes.find(c => c.id === ann.codeId);
-                   renderElements.push(
-                     <span key={`ann-${ann.id}`} id={`ann-${ann.id}`} className="highlighted-segment" style={{backgroundColor: `${code?.color || '#9ca3af'}40`, borderBottomColor: code?.color || '#9ca3af'}}>
-                       {chunk.content.substring(ann.startIndex, ann.endIndex)}
-                       <sup style={{backgroundColor: code?.color || '#9ca3af', color:'white', padding:'0.1rem 0.3rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem'}} onClick={(e) => removeAnnotation(ann.id, e)} title="Hapus [{ann.createdBy}]">[{ann.createdBy[0]}] {code?.name || 'Catatan'}</sup>
-                     </span>
-                   );
+                   if (ann.ambiguous) {
+                     renderElements.push(
+                       <span key={`ann-${ann.id}`} id={`ann-${ann.id}`}
+                         className="highlighted-segment"
+                         style={{backgroundColor:'rgba(251,191,36,0.15)', borderBottom:'2px dashed #f59e0b'}}
+                       >
+                         {chunk.content.substring(ann.startIndex, ann.endIndex)}
+                         <sup
+                           style={{backgroundColor:'#f59e0b', color:'#000', padding:'0.1rem 0.4rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', fontWeight:'bold'}}
+                           title={`⚠️ Lokasi ambigu: kutipan ini muncul di lebih dari satu tempat. Klik untuk memvalidasi.`}
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             const confirmed = window.confirm(`⚠️ VALIDASI KUTIPAN\n\n"${ann.quote.substring(0, 80)}${ann.quote.length > 80 ? '...' : ''}"\n\nKutipan ini muncul di beberapa lokasi dalam transkrip dan sistem tidak dapat menentukan lokasi yang tepat secara otomatis.\n\n• Tekan [OK] untuk mengonfirmasi bahwa posisi ini SUDAH BENAR\n• Tekan [Batal] untuk menghapus anotasi ini dan memasangnya ulang secara manual`);
+                             if (confirmed) {
+                               setAnnotations(prev => prev.map(a => a.id === ann.id ? {...a, ambiguous: false} : a));
+                             } else {
+                               setAnnotations(prev => prev.filter(a => a.id !== ann.id));
+                             }
+                           }}
+                         >⚠️ {code?.name || 'Periksa'}</sup>
+                       </span>
+                     );
+                   } else {
+                     renderElements.push(
+                       <span key={`ann-${ann.id}`} id={`ann-${ann.id}`} className="highlighted-segment" style={{backgroundColor: `${code?.color || '#9ca3af'}40`, borderBottomColor: code?.color || '#9ca3af'}}>
+                         {chunk.content.substring(ann.startIndex, ann.endIndex)}
+                         <sup style={{backgroundColor: code?.color || '#9ca3af', color:'white', padding:'0.1rem 0.3rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem'}} onClick={(e) => removeAnnotation(ann.id, e)} title={`Hapus [${ann.createdBy}]`}>[{ann.createdBy[0]}] {code?.name || 'Catatan'}</sup>
+                       </span>
+                     );
+                   }
                    lastIdx = ann.endIndex;
                  });
                  if (lastIdx < chunk.content.length) renderElements.push(<span key={`end`}>{chunk.content.substring(lastIdx)}</span>);
