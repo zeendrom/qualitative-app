@@ -104,7 +104,7 @@ Anda wajib:
 3. Setiap kode harus ditempatkan dalam tepat satu tema — tidak ada kode yang boleh dibiarkan mengambang.
 4. Nama tema harus merupakan frasa deskriptif yang menangkap esensi pengalaman bersama, bukan label teknis atau kategori abstrak.
 5. Dilarang membuat tema yang hanya berisi satu kode — minimal dua kode per tema.
-6. Jumlah tema yang optimal adalah antara 3 hingga 7 tema untuk menjaga keterbacaan analisis IPA.
+6. Jumlah tema ditentukan murni oleh kewajaran kemunculan makna empiris tanpa ada paksaan jumlah batas minimum maupun maksimum. Biarkan struktur tematik tumbuh secara mandiri dan organik.
 
 Kriteria pengelompokan yang valid:
 - Kode-kode yang merujuk pada pengalaman emosional yang serupa.
@@ -183,7 +183,7 @@ export const buildQaChatPrompt = (
 ): string => {
   return template
     .replace('{docs}', String(ctx.docs))
-    .replace('{codes}', `${ctx.codeNames.length} kode (${ctx.codeNames.slice(0, 15).join(', ')}${ctx.codeNames.length > 15 ? '...' : ''})`)
+    .replace('{codes}', `${ctx.codeNames.length} kode (${ctx.codeNames.join(', ')})`)
     .replace('{themes}', ctx.themeNames.length > 0 ? `${ctx.themeNames.length} tema (${ctx.themeNames.join(', ')})` : 'belum ada tema')
     .replace('{quotes}', String(ctx.quotes));
 };
