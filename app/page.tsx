@@ -474,12 +474,6 @@ export default function Home() {
 
                 if (generatedCodes && Array.isArray(generatedCodes)) {
                     generatedCodes.forEach((oc: any) => {
-                        let existingCode = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
-                        if (!existingCode) { 
-                            existingCode = { id: crypto.randomUUID(), projectId: projId, name: oc.code_name, color: COLORS[newCodes.length % COLORS.length], description: oc.rationale }; 
-                            newCodes.push(existingCode);
-                        }
-                        
                         const qText = oc.quote.trim();
                         let localStart = typeof oc.start_index === 'number' ? oc.start_index : -1;
                         if (localStart === -1 || chunk.content.substring(localStart, oc.end_index)?.trim() !== qText) {
@@ -487,6 +481,12 @@ export default function Home() {
                         }
                         
                         if (localStart !== -1) {
+                            let existingCode = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
+                            if (!existingCode) { 
+                                existingCode = { id: crypto.randomUUID(), projectId: projId, name: oc.code_name, color: COLORS[newCodes.length % COLORS.length], description: oc.rationale }; 
+                                newCodes.push(existingCode);
+                            }
+
                             // Cek agar tidak menduplikasi tagging yang 100% sama (jika tombol tertekan 2x)
                             const isDuplicate = newAnns.some(a => a.chunkId === chunk.id && a.codeId === existingCode.id && a.startIndex === localStart);
                             
