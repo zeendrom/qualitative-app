@@ -202,19 +202,31 @@ export default function Home() {
         const newDocId = crypto.randomUUID();
         const newDoc: AppDocument = { id: newDocId, projectId: currProj.id, title: file.name, content: text };
         
-        // Anti-Token Limit: Hard Chunking (~600 chars max per request, hemat TPM Groq)
+        // Fenomenologis Chunking: ~1800 karakter per segmen
+        // Prioritas pemecahan: paragraf ganda (\n\n) → baris tunggal → spasi
+        // Ukuran 1800 karakter mencerminkan satu giliran bicara wawancara yang utuh
+        const CHUNK_SIZE = 1800;
         const chunks: TextChunk[] = [];
         let seq = 0;
         let pos = 0;
         while (pos < text.length) {
-            let nextPos = pos + 600;
+            let nextPos = pos + CHUNK_SIZE;
             if (nextPos < text.length) {
-                let breakPos = text.lastIndexOf('\n', nextPos);
-                if (breakPos <= pos) {
-                    breakPos = text.lastIndexOf(' ', nextPos);
-                    if (breakPos <= pos) breakPos = nextPos;
+                // Cari jeda paragraf ganda (\n\n) terlebih dahulu — ini adalah batas alami giliran bicara
+                let breakPos = text.lastIndexOf('\n\n', nextPos);
+                if (breakPos > pos) {
+                    nextPos = breakPos;
+                } else {
+                    // Fallback ke baris tunggal
+                    breakPos = text.lastIndexOf('\n', nextPos);
+                    if (breakPos > pos) {
+                        nextPos = breakPos;
+                    } else {
+                        // Fallback terakhir ke spasi
+                        breakPos = text.lastIndexOf(' ', nextPos);
+                        if (breakPos > pos) nextPos = breakPos;
+                    }
                 }
-                nextPos = breakPos;
             }
             
             const chunkContent = text.slice(pos, nextPos).trim();
@@ -226,7 +238,7 @@ export default function Home() {
               });
             }
             pos = nextPos;
-            // Lewati spasi/enter berlebih
+            // Lewati whitespace antar-chunk
             while(pos < text.length && (text[pos] === ' ' || text[pos] === '\n' || text[pos] === '\r')) pos++;
         }
 
@@ -486,20 +498,30 @@ export default function Home() {
                 if (generatedCodes && Array.isArray(generatedCodes)) {
                     generatedCodes.forEach((oc: any) => {
                         let qText = oc.quote.trim();
-                        // Langsung gunakan pencarian exact match (karena start_index sudah tidak digunakan)
+                        // 1. Exact match
                         let localStart = chunk.content.indexOf(qText);
-                        // Jika gagal karena Llama menghapus enter/newline, gunakan fuzzy match!
-                            if (localStart === -1) {
-                                const escapedQText = qText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                const regexStr = escapedQText.replace(/\\?\s+/g, '\\s+');
-                                try {
-                                    const match = chunk.content.match(new RegExp(regexStr, 'i'));
-                                    if (match && match.index !== undefined) {
-                                        localStart = match.index;
-                                        qText = match[0]; // Pakai struktur aslinya (beserta enter) 
+                        // 2. Fuzzy match (jika AI membuang newline/whitespace dari kutipan asli)
+                        if (localStart === -1) {
+                            const escapedQText = qText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const regexStr = escapedQText.replace(/\\?\s+/g, '\\s+');
+                            try {
+                                const globalRegex = new RegExp(regexStr, 'gi');
+                                let match: RegExpExecArray | null;
+                                let bestMatch: RegExpExecArray | null = null;
+                                // Offset-aware: Ambil kemunculan yang BELUM pernah digunakan dalam chunk ini
+                                const usedOffsets = new Set(newAnns.filter(a => a.chunkId === chunk.id).map(a => a.startIndex));
+                                while ((match = globalRegex.exec(chunk.content)) !== null) {
+                                    if (!usedOffsets.has(match.index)) {
+                                        bestMatch = match;
+                                        break; // Gunakan kemunculan valid pertama
                                     }
-                                } catch (e) {}
-                            }
+                                }
+                                if (bestMatch) {
+                                    localStart = bestMatch.index;
+                                    qText = bestMatch[0]; // Pulihkan struktur whitespace aslinya
+                                }
+                            } catch (e) {}
+                        }
                         
                         if (localStart !== -1) {
                             let existingCode = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
