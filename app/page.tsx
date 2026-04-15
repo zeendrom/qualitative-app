@@ -2072,7 +2072,12 @@ export default function Home() {
                   const after = chunk?.content.substring(pos + resolvingAnn.quote.length, pos + resolvingAnn.quote.length + 40) || '';
                   const isCurrentPos = pos === resolvingAnn.startIndex;
                   return (() => {
-                    const isOccupied = annotations.some(a => a.id !== resolvingAnn.id && a.chunkId === resolvingAnn.chunkId && a.startIndex === pos);
+                    const quoteLen = resolvingAnn.quote.length;
+                   const isOccupied = annotations.some(a =>
+                     a.id !== resolvingAnn.id &&
+                     a.chunkId === resolvingAnn.chunkId &&
+                     pos < a.endIndex && (pos + quoteLen) > a.startIndex
+                   );
                     return (
                     <div
                       key={pos}
@@ -2082,7 +2087,7 @@ export default function Home() {
                           return;
                         }
                         setAnnotations(prev => prev.map(a => a.id === resolvingAnn.id
-                          ? {...a, startIndex: pos, endIndex: pos + resolvingAnn.quote.length, ambiguous: false, candidatePositions: undefined}
+                          ? {...a, startIndex: pos, endIndex: pos + quoteLen, ambiguous: false, candidatePositions: undefined}
                           : a
                         ));
                         setResolvingAnn(null);
@@ -2096,25 +2101,26 @@ export default function Home() {
                           {isCurrentPos && <span style={{color:'#f59e0b'}}> ← Posisi saat ini</span>}
                           {isOccupied && <span style={{color:'#ef4444'}}> ⛔ Terpakai</span>}
                         </div>
-                        {/* Skor relevansi semantik lokal: overlap kata kunci rationale vs konteks sekitar */}
-                        {(() => {
-                          const rationaleWords = new Set((resolvingAnn.rationale || '').toLowerCase().match(/\b\w{4,}\b/g) || []);
-                          const ctx = chunk?.content.substring(Math.max(0, pos - 150), pos + resolvingAnn.quote.length + 150).toLowerCase() || '';
-                          const matchCount = [...rationaleWords].filter(w => ctx.includes(w)).length;
-                          const score = rationaleWords.size > 0 ? Math.round((matchCount / rationaleWords.size) * 100) : 0;
-                          const color = score >= 60 ? '#86efac' : score >= 30 ? '#fcd34d' : '#fca5a5';
-                          return rationaleWords.size > 0 ? (
-                            <span style={{fontSize:'0.68rem', padding:'0.1rem 0.5rem', borderRadius:'999px', backgroundColor:`${color}20`, color, border:`1px solid ${color}50`, fontWeight:'600'}}>
-                              🎯 Relevansi {score}%
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                      <div style={{fontSize:'0.82rem', lineHeight:'1.7', color:'#e2e8f0', fontFamily:'monospace'}}>
-                        <span style={{color:'var(--text-secondary)', opacity:0.7}}>{before.length === 40 ? '...' : ''}{before}</span>
-                        <mark style={{backgroundColor:'rgba(245,158,11,0.35)', color:'#fde68a', padding:'0.1rem 0'}}>{resolvingAnn.quote}</mark>
-                        <span style={{color:'var(--text-secondary)', opacity:0.7}}>{after}{after.length === 40 ? '...' : ''}</span>
-                      </div>
+                        {/* IDF-weighted semantic scoring + keyword highlight */}
+                         {(() => {
+                           const sw = new Set(['yang','dan','untuk','dengan','tidak','adalah','bahwa','sebagai','kepada','karena','seperti','mereka','sebuah','menjadi','tersebut','dari','pada','ini','itu','oleh','juga','saat','akan','sudah','bisa','agar','atau','ada','telah','kita','saya','anda','dia','kamu']);
+                           const protKw = new Set((draftParameter||'').toLowerCase().match(/\b\w{3,}\b/g)?.filter(w=>!sw.has(w))||[]);
+                           const raw = (resolvingAnn.rationale||'').toLowerCase().match(/\b\w{3,}\b/g)||[];
+                           const uWords = [...new Set(raw)].filter(w=>!sw.has(w));
+                           const allC = textChunks.map(tc=>tc.content.toLowerCase());
+                           const ctxL = (chunk?.content.substring(Math.max(0,pos-150),pos+quoteLen+150)||'').toLowerCase();
+                           let tW=0,mW=0; const mSet=new Set();
+                           uWords.forEach(w=>{const n=allC.filter(t=>t.includes(w)).length||1;const idf=1/n;const wt=protKw.has(w)?idf*2:idf;tW+=wt;if(ctxL.includes(w)){mW+=wt;mSet.add(w);}});
+                           const score=tW>0?Math.round((mW/tW)*100):0;
+                           const sc=score>=60?'#86efac':score>=30?'#fcd34d':'#fca5a5';
+                           return uWords.length>0?(<span style={{fontSize:'0.68rem',padding:'0.1rem 0.5rem',borderRadius:'999px',backgroundColor:`${sc}20`,color:sc,border:`1px solid ${sc}50`,fontWeight:'600'}}>🎯 {score}% relevan</span>):null;
+                         })()}
+                       </div>
+                       <div style={{fontSize:'0.82rem', lineHeight:'1.7', color:'#e2e8f0', fontFamily:'monospace'}}>
+                         <span style={{color:'var(--text-secondary)', opacity:0.7}}>{before.length >= 40 ? '...' : ''}{before}</span>
+                         <mark style={{backgroundColor:'rgba(245,158,11,0.35)', color:'#fde68a', padding:'0.1rem 0'}}>{resolvingAnn.quote}</mark>
+                         <span style={{color:'var(--text-secondary)', opacity:0.7}}>{after}{after.length >= 40 ? '...' : ''}</span>
+                       </div>
                     </div>
                     );
                   })();
