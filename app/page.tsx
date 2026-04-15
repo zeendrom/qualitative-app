@@ -9,7 +9,7 @@ interface AppDocument { id: string; projectId: string; title: string; content: s
 interface TextChunk { id: string; documentId: string; sequenceNum: number; content: string; startIndex: number; endIndex: number; }
 interface MacroTheme { id: string; projectId: string; name: string; }
 interface Code { id: string; projectId: string; themeId?: string; name: string; color: string; description?: string; }
-interface Annotation { id: string; chunkId: string; codeId?: string; parameterVersionId: string; quote: string; rationale: string; createdBy: 'AI' | 'MANUAL'; startIndex: number; endIndex: number; ambiguous?: boolean; }
+interface Annotation { id: string; chunkId: string; codeId?: string; parameterVersionId: string; quote: string; rationale: string; createdBy: 'AI' | 'MANUAL'; startIndex: number; endIndex: number; ambiguous?: boolean; candidatePositions?: number[]; }
 interface AnnotationHistory { id: string; annotationId: string; oldRationale: string; newRationale: string; changedAt: string; }
 
 type ChatMessage = { role: 'user' | 'ai'; content: string; };
@@ -129,6 +129,9 @@ export default function Home() {
   const [exportDraft, setExportDraft] = useState('');
   const [exportType, setExportType] = useState<'csv' | 'md' | 'txt' | 'qdc'>('csv');
   const [showExportPickerModal, setShowExportPickerModal] = useState(false);
+  // Ambiguity resolver state
+  const [resolvingAnn, setResolvingAnn] = useState<Annotation | null>(null);
+  const [ambigNavIdx, setAmbigNavIdx] = useState(0);
 
   const frequentWords = useMemo(() => {
     if (mainViewMode !== 'visual') return [];
@@ -519,14 +522,14 @@ export default function Home() {
                                 if (bestMatch) {
                                     localStart = bestMatch.index;
                                     qText = bestMatch[0]; // Pulihkan struktur whitespace aslinya
-                                    // Hitung sisa kemunculan valid untuk menentukan ambiguitas
-                                    let extraCount = 0;
-                                    let nextMatch: RegExpExecArray | null;
-                                    while ((nextMatch = globalRegex.exec(chunk.content)) !== null) {
-                                        if (!usedOffsets.has(nextMatch.index)) extraCount++;
+                                    // Kumpulkan SEMUA posisi valid untuk resolver konflik
+                                    const allPositions: number[] = [localStart];
+                                    let nextMatch2: RegExpExecArray | null;
+                                    while ((nextMatch2 = globalRegex.exec(chunk.content)) !== null) {
+                                        if (!usedOffsets.has(nextMatch2.index)) allPositions.push(nextMatch2.index);
                                     }
-                                    if (extraCount > 0) {
-                                        // Tandai sebagai ambigu — ada >1 kandidat lokasi yang tidak bisa dibedakan
+                                    if (allPositions.length > 1) {
+                                        // Ambigu: simpan semua kandidat posisi agar peneliti bisa memilih
                                         let existingCodeAmb = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
                                         if (!existingCodeAmb) {
                                             existingCodeAmb = { id: crypto.randomUUID(), projectId: projId, name: oc.code_name, color: COLORS[newCodes.length % COLORS.length], description: oc.rationale };
@@ -536,7 +539,7 @@ export default function Home() {
                                             id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCodeAmb.id, parameterVersionId: activeProtocol?.id || 'orphan',
                                             quote: qText, rationale: oc.rationale, createdBy: 'AI',
                                             startIndex: localStart, endIndex: localStart + qText.length,
-                                            ambiguous: true
+                                            ambiguous: true, candidatePositions: allPositions
                                         });
                                         return; // Skip blok dedup normal
                                     }
@@ -1518,16 +1521,8 @@ export default function Home() {
                          {chunk.content.substring(ann.startIndex, ann.endIndex)}
                          <sup
                            style={{backgroundColor:'#f59e0b', color:'#000', padding:'0.1rem 0.4rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', fontWeight:'bold'}}
-                           title={`⚠️ Lokasi ambigu: kutipan ini muncul di lebih dari satu tempat. Klik untuk memvalidasi.`}
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             const confirmed = window.confirm(`⚠️ VALIDASI KUTIPAN\n\n"${ann.quote.substring(0, 80)}${ann.quote.length > 80 ? '...' : ''}"\n\nKutipan ini muncul di beberapa lokasi dalam transkrip dan sistem tidak dapat menentukan lokasi yang tepat secara otomatis.\n\n• Tekan [OK] untuk mengonfirmasi bahwa posisi ini SUDAH BENAR\n• Tekan [Batal] untuk menghapus anotasi ini dan memasangnya ulang secara manual`);
-                             if (confirmed) {
-                               setAnnotations(prev => prev.map(a => a.id === ann.id ? {...a, ambiguous: false} : a));
-                             } else {
-                               setAnnotations(prev => prev.filter(a => a.id !== ann.id));
-                             }
-                           }}
+                           title={`⚠️ Klik untuk membuka Resolver Konflik — kutipan ini muncul di ${(ann.candidatePositions?.length || 1)} lokasi`}
+                           onClick={(e) => { e.stopPropagation(); setResolvingAnn(ann); }}
                          >⚠️ {code?.name || 'Periksa'}</sup>
                        </span>
                      );
@@ -2050,6 +2045,91 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ===== AMBIGUITY RESOLVER MODAL ===== */}
+      {resolvingAnn && (() => {
+        const chunk = textChunks.find(tc => tc.id === resolvingAnn.chunkId);
+        const code = codes.find(c => c.id === resolvingAnn.codeId);
+        const candidates = resolvingAnn.candidatePositions || [resolvingAnn.startIndex];
+        return (
+          <div style={{position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)'}}>
+            <div style={{backgroundColor:'var(--panel-bg)', border:'1px solid #f59e0b', borderRadius:'12px', padding:'1.5rem', width:'600px', maxWidth:'90vw', maxHeight:'80vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+                <h3 style={{margin:0, color:'#f59e0b', fontSize:'1rem'}}>⚠️ Resolver Konflik Lokasi Kutipan</h3>
+                <button style={{background:'transparent', border:'none', color:'var(--text-secondary)', fontSize:'1.2rem', cursor:'pointer'}} onClick={() => setResolvingAnn(null)}>✕</button>
+              </div>
+              <div style={{fontSize:'0.8rem', color:'var(--text-secondary)', marginBottom:'1rem', lineHeight:'1.6'}}>
+                Kutipan berikut ditemukan di <strong style={{color:'#fbbf24'}}>{candidates.length} lokasi berbeda</strong> dalam segmen teks. Pilih lokasi yang tepat:
+              </div>
+              <div style={{backgroundColor:'rgba(0,0,0,0.3)', padding:'0.8rem', borderRadius:'6px', marginBottom:'1.2rem', fontStyle:'italic', fontSize:'0.82rem', color:'#e2e8f0', borderLeft:'3px solid #f59e0b'}}>
+                &ldquo;{resolvingAnn.quote}&rdquo;
+              </div>
+              <div style={{display:'flex', flexDirection:'column', gap:'0.6rem'}}>
+                {candidates.map((pos, i) => {
+                  const before = chunk?.content.substring(Math.max(0, pos - 40), pos) || '';
+                  const after = chunk?.content.substring(pos + resolvingAnn.quote.length, pos + resolvingAnn.quote.length + 40) || '';
+                  const isCurrentPos = pos === resolvingAnn.startIndex;
+                  return (
+                    <div
+                      key={pos}
+                      onClick={() => {
+                        setAnnotations(prev => prev.map(a => a.id === resolvingAnn.id
+                          ? {...a, startIndex: pos, endIndex: pos + resolvingAnn.quote.length, ambiguous: false, candidatePositions: undefined}
+                          : a
+                        ));
+                        setResolvingAnn(null);
+                        // Scroll ke lokasi terpilih
+                        setTimeout(() => document.getElementById(`ann-${resolvingAnn.id}`)?.scrollIntoView({behavior:'smooth', block:'center'}), 200);
+                      }}
+                      style={{padding:'0.8rem 1rem', backgroundColor: isCurrentPos ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)', border: isCurrentPos ? '1px solid rgba(245,158,11,0.5)' : '1px solid rgba(255,255,255,0.07)', borderRadius:'8px', cursor:'pointer', transition:'all 0.15s'}}
+                    >
+                      <div style={{fontSize:'0.7rem', color:'var(--text-secondary)', marginBottom:'0.4rem'}}>Lokasi {i + 1} (karakter {pos}) {isCurrentPos && <span style={{color:'#f59e0b'}}> ← Posisi saat ini</span>}</div>
+                      <div style={{fontSize:'0.82rem', lineHeight:'1.7', color:'#e2e8f0', fontFamily:'monospace'}}>
+                        <span style={{color:'var(--text-secondary)', opacity:0.7}}>{before.length === 40 ? '...' : ''}{before}</span>
+                        <mark style={{backgroundColor:'rgba(245,158,11,0.35)', color:'#fde68a', padding:'0.1rem 0'}}>{resolvingAnn.quote}</mark>
+                        <span style={{color:'var(--text-secondary)', opacity:0.7}}>{after}{after.length === 40 ? '...' : ''}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:'1rem', display:'flex', justifyContent:'flex-end'}}>
+                <button className="btn-outline btn-small" style={{color:'#ef4444', borderColor:'transparent'}} onClick={() => {
+                  setAnnotations(prev => prev.filter(a => a.id !== resolvingAnn.id));
+                  setResolvingAnn(null);
+                }}>🗑 Hapus Anotasi Ini</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===== NAVIGASI AMBIGUITAS ===== */}
+      {(() => {
+        const ambigList = annotations.filter(a => a.ambiguous);
+        if (ambigList.length === 0) return null;
+        const safeIdx = Math.min(ambigNavIdx, ambigList.length - 1);
+        return (
+          <div style={{position:'fixed', bottom:'1.5rem', left:'50%', transform:'translateX(-50%)', zIndex:500, display:'flex', alignItems:'center', gap:'0.5rem', backgroundColor:'rgba(15,15,15,0.95)', border:'1px solid #f59e0b', borderRadius:'999px', padding:'0.5rem 1rem', backdropFilter:'blur(8px)', boxShadow:'0 4px 20px rgba(0,0,0,0.5)', fontSize:'0.8rem'}}>
+            <span style={{color:'#f59e0b', fontWeight:'700'}}>⚠️ {ambigList.length} perlu validasi</span>
+            <button style={{background:'transparent', border:'none', color:'var(--text-primary)', cursor:'pointer', fontSize:'1rem', padding:'0 0.3rem'}} onClick={() => {
+              const newIdx = (safeIdx - 1 + ambigList.length) % ambigList.length;
+              setAmbigNavIdx(newIdx);
+              document.getElementById(`ann-${ambigList[newIdx].id}`)?.scrollIntoView({behavior:'smooth', block:'center'});
+            }}>←</button>
+            <span style={{color:'var(--text-secondary)', fontSize:'0.75rem'}}>{safeIdx + 1}/{ambigList.length}</span>
+            <button style={{background:'transparent', border:'none', color:'var(--text-primary)', cursor:'pointer', fontSize:'1rem', padding:'0 0.3rem'}} onClick={() => {
+              const newIdx = (safeIdx + 1) % ambigList.length;
+              setAmbigNavIdx(newIdx);
+              document.getElementById(`ann-${ambigList[newIdx].id}`)?.scrollIntoView({behavior:'smooth', block:'center'});
+            }}>→</button>
+            <button className="btn-small" style={{backgroundColor:'#f59e0b', color:'#000', fontWeight:'700', fontSize:'0.75rem', borderRadius:'999px'}} onClick={() => {
+              document.getElementById(`ann-${ambigList[safeIdx].id}`)?.scrollIntoView({behavior:'smooth', block:'center'});
+              setResolvingAnn(ambigList[safeIdx]);
+            }}>Selesaikan</button>
+          </div>
+        );
+      })()}
 
     </div>
   );
