@@ -514,9 +514,10 @@ export default function Home() {
                                 let match: RegExpExecArray | null;
                                 let bestMatch: RegExpExecArray | null = null;
                                 // Offset-aware: Ambil kemunculan yang BELUM pernah digunakan dalam chunk ini
-                                const usedOffsets = new Set(newAnns.filter(a => a.chunkId === chunk.id).map(a => a.startIndex));
+                                                                // Offset-aware: Deteksi tumpang-tindih interval dengan semua anotasi sebelumnya (AI maupun MANUAL)
+                                const isOccupied = (pos: number, qLen: number) => newAnns.some(a => a.chunkId === chunk.id && pos < a.endIndex && (pos + qLen) > a.startIndex);
                                 while ((match = globalRegex.exec(chunk.content)) !== null) {
-                                    if (!usedOffsets.has(match.index)) {
+                                    if (!isOccupied(match.index, match[0].length)) {
                                         bestMatch = match;
                                         break; // Gunakan kemunculan valid pertama
                                     }
@@ -524,11 +525,11 @@ export default function Home() {
                                 if (bestMatch) {
                                     localStart = bestMatch.index;
                                     qText = bestMatch[0]; // Pulihkan struktur whitespace aslinya
-                                    // Kumpulkan SEMUA posisi valid untuk resolver konflik
+                                    // Kumpulkan SEMUA posisi valid (tidak tumpang tindih) untuk resolver konflik
                                     const allPositions: number[] = [localStart];
                                     let nextMatch2: RegExpExecArray | null;
                                     while ((nextMatch2 = globalRegex.exec(chunk.content)) !== null) {
-                                        if (!usedOffsets.has(nextMatch2.index)) allPositions.push(nextMatch2.index);
+                                        if (!isOccupied(nextMatch2.index, nextMatch2[0].length)) allPositions.push(nextMatch2.index);
                                     }
                                     if (allPositions.length > 1) {
                                         // Ambigu: simpan semua kandidat posisi agar peneliti bisa memilih
