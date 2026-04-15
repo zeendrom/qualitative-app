@@ -321,18 +321,22 @@ export default function Home() {
             const base = apiProvider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
             // Groq: pakai llama-3.1-8b-instant (TPM 30.000) — jauh lebih aman dari llama-3.3-70b (TPM 12.000)
             const model = apiProvider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
-            // Groq: potong system prompt tapi PERTAHANKAN bagian akhir (skema JSON)
-            // sehingga model tetap tahu format output yang diinginkan
-            const safeSystem = apiProvider === 'groq' && systemPrompt.length > 2000
-              ? systemPrompt.slice(0, 900) + '\n...\n' + systemPrompt.slice(-900)
+            // Groq: potong system prompt lebih longgar agar instruksi format JSON di tengah tidak hilang
+            const safeSystem = apiProvider === 'groq' && systemPrompt.length > 4000
+              ? systemPrompt.slice(0, 2000) + '\n...\n' + systemPrompt.slice(-2000)
               : systemPrompt;
             // Potong user text untuk menjaga total token tetap aman
-            const safeUser = apiProvider === 'groq' && userText.length > 1200
-              ? userText.slice(0, 1200) + '\n[...teks dipotong untuk hemat TPM]'
+            const safeUser = apiProvider === 'groq' && userText.length > 2000
+              ? userText.slice(0, 2000) + '\n[...teks dipotong untuk hemat TPM]'
               : userText;
             const res = await fetch(base, {
               method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-              body: JSON.stringify({ model, max_tokens: 1024, messages: [ {role: 'system', content: safeSystem}, {role: 'user', content: safeUser} ] })
+              body: JSON.stringify({ 
+                  model, 
+                  max_tokens: 2048, 
+                  response_format: { type: "json_object" },
+                  messages: [ {role: 'system', content: safeSystem}, {role: 'user', content: safeUser} ] 
+              })
             });
             const data = await res.json();
             if (data.error) throw new Error(data.error.message);
