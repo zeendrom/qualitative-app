@@ -430,7 +430,8 @@ export default function Home() {
                 const speakerCtx = lastSpeakerContext
                   ? `[KONTEKS PENUTUR SEBELUMNYA: Potongan sebelumnya berakhir dengan ucapan ${lastSpeakerContext}. Gunakan ini untuk menentukan siapa yang bicara di awal potongan ini jika tidak ada penanda eksplisit.]\n`
                   : '';
-                const contextStr = `[Konteks Informan: ${informantName}]\n${speakerCtx}--- POTONGAN TEKS ---\n${chunk.content}\n--- SELESAI ---`;
+                const strictJsonNotice = `\n[PERINGATAN KRITIS JSON]\n1. DILARANG KERAS menggunakan enter (baris baru) di dalam teks 'quote' atau 'rationale'. Ganti semua perpindahan baris dengan spasi.\n2. DILARANG menggunakan tanda kutip ganda (") di dalam nilai string. Ganti dengan kutip tunggal (').\n3. Kembalikan HANYA format JSON murni.\n`;
+                const contextStr = `[Konteks Informan: ${informantName}]\n${speakerCtx}${strictJsonNotice}--- POTONGAN TEKS ---\n${chunk.content}\n--- SELESAI ---`;
                 // Retry otomatis jika kena rate limit (429)
                 let resultString = '';
                 let retries = 0;
@@ -439,7 +440,7 @@ export default function Home() {
                     resultString = await executeLLM(finalPrompt, contextStr);
                     break;
                   } catch (retryErr: any) {
-                    if (retryErr.message?.includes('rate limit') || retryErr.message?.includes('Rate limit')) {
+                    if (retryErr.message?.includes('rate limit') || retryErr.message?.includes('Rate limit') || retryErr.message?.includes('429')) {
                       const waitSec = 15;
                       for (let t = waitSec; t > 0; t--) {
                         setCodingProgress(prev => prev ? {...prev, countdown: t} : null);
@@ -454,7 +455,13 @@ export default function Home() {
 
                 // Fungsi pemulihan JSON terpotong (Unterminated string)
                 const recoverJSON = (raw: string): any => {
-                  try { return JSON.parse(raw); } catch {}
+                  try { return JSON.parse(raw); } catch (err1) {
+                    // Coba bersihkan literal newline yang nyasar di dalam JSON (sering terjadi di Llama)
+                    try { 
+                       const cleaned = raw.replace(/\n/g, ' ').replace(/\r/g, ''); 
+                       return JSON.parse(cleaned); 
+                    } catch (err2) {}
+                  }
                   // Coba potong di akhir objek terakhir yang lengkap
                   const lastComplete = raw.lastIndexOf('},');
                   if (lastComplete > 0) {
@@ -469,7 +476,7 @@ export default function Home() {
                     const arrStr = arrMatch[2].replace(/,?\s*\}?\s*\]?\s*$/, '') + ']}';
                     try { return JSON.parse(`{"${arrMatch[1]}":${arrStr}`); } catch {}
                   }
-                  throw new Error('Format JSON tidak dapat dipulihkan');
+                  throw new Error(`Format JSON tidak dapat dipulihkan. Cuplikan: ${raw.substring(0, 100)}...`);
                 };
 
                 const parsed = recoverJSON(rawText);
