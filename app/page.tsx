@@ -486,11 +486,9 @@ export default function Home() {
                 if (generatedCodes && Array.isArray(generatedCodes)) {
                     generatedCodes.forEach((oc: any) => {
                         let qText = oc.quote.trim();
-                        let localStart = typeof oc.start_index === 'number' ? oc.start_index : -1;
-                        if (localStart === -1 || chunk.content.substring(localStart, Math.max(0, oc.end_index))?.trim() !== qText) {
-                            // Coba exact match dulu
-                            localStart = chunk.content.indexOf(qText);
-                            // Jika gagal karena Llama menghapus enter/newline, gunakan fuzzy match!
+                        // Langsung gunakan pencarian exact match (karena start_index sudah tidak digunakan)
+                        let localStart = chunk.content.indexOf(qText);
+                        // Jika gagal karena Llama menghapus enter/newline, gunakan fuzzy match!
                             if (localStart === -1) {
                                 const escapedQText = qText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                                 const regexStr = escapedQText.replace(/\\?\s+/g, '\\s+');
@@ -502,7 +500,6 @@ export default function Home() {
                                     }
                                 } catch (e) {}
                             }
-                        }
                         
                         if (localStart !== -1) {
                             let existingCode = newCodes.find(co => co.name.toLowerCase() === oc.code_name.toLowerCase());
