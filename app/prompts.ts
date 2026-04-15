@@ -138,10 +138,13 @@ export const buildQaChatPrompt = (
     .replace('{quotes}', String(ctx.quotes));
 };
 
-/** Reset ke default jika kunci prompt tidak valid */
-export const sanitizePromptConfig = (raw: Partial<PromptConfig>): PromptConfig => ({
-  openCoding: raw.openCoding?.trim() || DEFAULT_PROMPTS.openCoding,
-  autoTheme: raw.autoTheme?.trim() || DEFAULT_PROMPTS.autoTheme,
-  qaChat: raw.qaChat?.trim() || DEFAULT_PROMPTS.qaChat,
-  narrativeCoding: raw.narrativeCoding?.trim() || DEFAULT_PROMPTS.narrativeCoding,
-});
+/** Reset ke default jika kunci prompt tidak valid atau mengandung instruksi indexing jadul */
+export const sanitizePromptConfig = (raw: Partial<PromptConfig>): PromptConfig => {
+  const needsReset = (text: string | undefined): boolean => !text || text.includes('start_index') || text.includes('end_index') || text.includes('kutipan verbatim dari teks beserta kalkulasi');
+  return {
+    openCoding: needsReset(raw.openCoding) ? DEFAULT_PROMPTS.openCoding : (raw.openCoding?.trim() || ''),
+    autoTheme: needsReset(raw.autoTheme) ? DEFAULT_PROMPTS.autoTheme : (raw.autoTheme?.trim() || ''),
+    qaChat: needsReset(raw.qaChat) ? DEFAULT_PROMPTS.qaChat : (raw.qaChat?.trim() || ''),
+    narrativeCoding: needsReset(raw.narrativeCoding) ? DEFAULT_PROMPTS.narrativeCoding : (raw.narrativeCoding?.trim() || ''),
+  };
+};

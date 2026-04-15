@@ -557,7 +557,7 @@ export default function Home() {
                             }
 
                             // Cek agar tidak menduplikasi tagging yang 100% sama (jika tombol tertekan 2x)
-                            const isDuplicate = newAnns.some(a => a.chunkId === chunk.id && a.codeId === existingCode.id && a.startIndex === localStart);
+                            const isDuplicate = newAnns.some(a => a.chunkId === chunk.id && a.codeId === existingCode.id && localStart < a.endIndex && (localStart + qText.length) > a.startIndex);
                             
                             if (!isDuplicate) {
                                 newAnns.push({ 
