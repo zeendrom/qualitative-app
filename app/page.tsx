@@ -79,6 +79,7 @@ export default function Home() {
   const [macroThemes, setMacroThemes] = useState<MacroTheme[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<Annotation[]>([]);
   const [annotationHistories, setAnnotationHistories] = useState<AnnotationHistory[]>([]);
   
   // Active UI View State
@@ -131,6 +132,12 @@ export default function Home() {
   const [showExportPickerModal, setShowExportPickerModal] = useState(false);
   // Ambiguity resolver state
   const [resolvingAnn, setResolvingAnn] = useState<Annotation | null>(null);
+  const acceptSuggestion = (s: Annotation, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setAiSuggestions(prev => prev.filter(x => x.id !== s.id));
+    setAnnotations(prev => [...prev, { ...s, createdBy: 'MANUAL', ambiguous: false, candidatePositions: undefined }]);
+  };
+
   const [ambigNavIdx, setAmbigNavIdx] = useState(0);
 
   const frequentWords = useMemo(() => {
@@ -175,7 +182,8 @@ export default function Home() {
     const timer = setTimeout(() => {
       // Strip candidatePositions sebelum menyimpan ke IDB agar basis data tetap ramping
       const leanAnnotations = annotations.map(({ candidatePositions: _cp, ...rest }) => rest);
-      saveToIDB({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations: leanAnnotations, annotationHistories, chatHistory, promptConfig }).catch(()=>{});
+      const leanSuggestions = aiSuggestions.map(({ candidatePositions: _cp, ...rest }) => rest);
+      saveToIDB({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations: leanAnnotations, aiSuggestions: leanSuggestions, annotationHistories, chatHistory, promptConfig }).catch(()=>{});
     }, 2000);
     return () => clearTimeout(timer);
   }, [appScreen, projects, projectParameters, documents, textChunks, macroThemes, codes, annotations, annotationHistories, chatHistory, promptConfig]);
@@ -257,7 +265,7 @@ export default function Home() {
 
   // --- External IO Backup ---
   const saveProject = () => {
-    const payload = JSON.stringify({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations, annotationHistories, chatHistory });
+    const payload = JSON.stringify({ projects, projectParameters, documents, textChunks, macroThemes, codes, annotations, aiSuggestions, annotationHistories, chatHistory });
     const blob = new Blob([payload], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'caqdas_db.qprj'; a.click();
@@ -276,6 +284,7 @@ export default function Home() {
         if (d.macroThemes) setMacroThemes(d.macroThemes);
         if (d.codes) setCodes(d.codes); 
         if (d.annotations) setAnnotations(d.annotations);
+        if (d.aiSuggestions) setAiSuggestions(d.aiSuggestions);
         if (d.annotationHistories) setAnnotationHistories(d.annotationHistories);
         setAppScreen('workspace');
       } catch(e) { alert("Format backup DB rusak/korup!"); }
@@ -387,6 +396,7 @@ export default function Home() {
         
         // Pertahankan SEMUA anotasi yang sudah ada di database (Manual maupun AI sebelumnya) untuk skenario multi-layer coding
         let newAnns = [...annotations];
+        let newSuggestions = [...aiSuggestions];
         const projId = projects.length > 0 ? projects[0].id : 'proj-1';
         let successCount = 0;
         let failCount = 0;
@@ -416,7 +426,7 @@ export default function Home() {
             if (cancelAutoCodingRef.current) {
                 // Simpan hasil parsial yang sudah ada sebelum berhenti
                 setCodes([...newCodes]);
-                setAnnotations([...newAnns]);
+                setAiSuggestions([...newSuggestions]);
                 alert(`⛔ Dibatalkan. Hasil parsial dari ${successCount} segmen telah disimpan.`);
                 break;
             }
@@ -515,7 +525,8 @@ export default function Home() {
                                 let bestMatch: RegExpExecArray | null = null;
                                 // Offset-aware: Ambil kemunculan yang BELUM pernah digunakan dalam chunk ini
                                                                 // Offset-aware: Deteksi tumpang-tindih interval dengan semua anotasi sebelumnya (AI maupun MANUAL)
-                                const isOccupied = (pos: number, qLen: number) => newAnns.some(a => a.chunkId === chunk.id && pos < a.endIndex && (pos + qLen) > a.startIndex);
+                                // AI hanya tidak boleh tumpang-tindih dengan AI suggestion lainnya yang ditarik untuk chunk yang sama
+                                const isOccupied = (pos: number, qLen: number) => newSuggestions.some(a => a.chunkId === chunk.id && pos < a.endIndex && (pos + qLen) > a.startIndex);
                                 while ((match = globalRegex.exec(chunk.content)) !== null) {
                                     if (!isOccupied(match.index, match[0].length)) {
                                         bestMatch = match;
@@ -538,8 +549,7 @@ export default function Home() {
                                             existingCodeAmb = { id: crypto.randomUUID(), projectId: projId, name: oc.code_name, color: COLORS[newCodes.length % COLORS.length], description: oc.rationale };
                                             newCodes.push(existingCodeAmb);
                                         }
-                                        newAnns.push({
-                                            id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCodeAmb.id, parameterVersionId: activeProtocol?.id || 'orphan',
+                                        newSuggestions.push({ id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCodeAmb.id, parameterVersionId: activeProtocol?.id || 'orphan',
                                             quote: qText, rationale: oc.rationale, createdBy: 'AI',
                                             startIndex: localStart, endIndex: localStart + qText.length,
                                             ambiguous: true, candidatePositions: allPositions
@@ -558,11 +568,10 @@ export default function Home() {
                             }
 
                             // Cek agar tidak menduplikasi tagging yang 100% sama (jika tombol tertekan 2x)
-                            const isDuplicate = newAnns.some(a => a.chunkId === chunk.id && a.codeId === existingCode.id && localStart < a.endIndex && (localStart + qText.length) > a.startIndex);
+                            const isDuplicate = newSuggestions.some(a => a.chunkId === chunk.id && a.codeId === existingCode.id && localStart < a.endIndex && (localStart + qText.length) > a.startIndex);
                             
                             if (!isDuplicate) {
-                                newAnns.push({ 
-                                  id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCode.id, parameterVersionId: activeProtocol?.id || 'orphan',
+                                newSuggestions.push({ id: crypto.randomUUID(), chunkId: chunk.id, codeId: existingCode.id, parameterVersionId: activeProtocol?.id || 'orphan',
                                   quote: qText, rationale: oc.rationale, createdBy: 'AI',
                                   startIndex: localStart, endIndex: localStart + qText.length 
                                 });
@@ -910,6 +919,7 @@ export default function Home() {
                         if (session.macroThemes) setMacroThemes(session.macroThemes);
                         if (session.codes) setCodes(session.codes);
                         if (session.annotations) setAnnotations(session.annotations);
+                        if (session.aiSuggestions) setAiSuggestions(session.aiSuggestions);
                         if (session.annotationHistories) setAnnotationHistories(session.annotationHistories);
                         setAppScreen('workspace');
                       }}>
@@ -2129,7 +2139,7 @@ export default function Home() {
               </div>
               <div style={{marginTop:'1rem', display:'flex', justifyContent:'flex-end'}}>
                 <button className="btn-outline btn-small" style={{color:'#ef4444', borderColor:'transparent'}} onClick={() => {
-                  setAnnotations(prev => prev.filter(a => a.id !== resolvingAnn.id));
+                  const isSug = aiSuggestions.some(s => s.id === resolvingAnn.id); if (isSug) setAiSuggestions(prev => prev.filter(a => a.id !== resolvingAnn.id)); else setAnnotations(prev => prev.filter(a => a.id !== resolvingAnn.id));
                   setResolvingAnn(null);
                 }}>🗑 Hapus Anotasi Ini</button>
               </div>
