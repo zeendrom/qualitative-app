@@ -456,7 +456,7 @@ export default function Home() {
   }, [projectParameters]);
 
   const executeLLM = async (systemPrompt: string, userText: string): Promise<string> => {
-    if (!apiKey.trim()) throw new Error("API Key kosong!");
+    // API Key dikonfigurasi di sisi sistem — tidak diperlukan input manual dari peneliti
 
     try {
         if (apiProvider === 'gemini') {
@@ -637,7 +637,7 @@ export default function Home() {
                     } else throw retryErr;
                   }
                 }
-                if (!resultString) throw new Error('Gagal setelah 3 kali retry (rate limit).');
+                if (!resultString) throw new Error('Mesin memerlukan jeda lebih lama. Silakan tunggu beberapa saat lalu coba kembali.');
                 const rawText = resultString.replace(/```json/g, '').replace(/```/g, '').trim();
 
                 // Fungsi pemulihan JSON terpotong (Unterminated string)
@@ -1972,15 +1972,16 @@ export default function Home() {
           <button className="btn-small" style={{border:'none', background:'transparent', color:'var(--text-secondary)'}} onClick={() => setIsRightOpen(false)}>×</button>
         </div>
         
-        <h3 style={{marginBottom:'0.5rem'}}>API</h3>
-        <select className="input-field" style={{marginBottom: '1rem', padding: '0.5rem'}} value={apiProvider} onChange={e => handleProviderChange(e.target.value)}>
-          <option value="gemini">Gemini (Direkomendasikan)</option><option value="openai">OpenAI</option><option value="groq">Groq Llama</option>
-        </select>
-
-        <h3 style={{marginTop:'1.5rem', marginBottom:'0.5rem'}}>Sandigate</h3>
-        <div style={{display:'flex', flexDirection:'column', gap:'0.3rem', marginBottom:'2rem'}}>
-           <input type="password" className="input-field" style={{padding: '0.5rem', fontSize: '0.85rem'}} placeholder="Masukkan 1 API Key di sini..." value={apiKey} onChange={e => updateKey(e.target.value)} />
-           <button className="btn btn-outline" style={{padding:'0.4rem', fontSize:'0.75rem', marginTop:'0.5rem'}} onClick={() => { setPromptDraft(promptConfig[editingPromptKey] as string); setShowPromptModal(true); }}>⚙️ Pengaturan Prompt AI</button>
+        {/* Status Sistem — Menampilkan indikator koneksi sederhana tanpa input teknis */}
+        <div style={{display:'flex', alignItems:'center', gap:'0.6rem', padding:'0.7rem 1rem', borderRadius:'10px', marginBottom:'1.5rem', background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.25)'}}>
+          <span style={{fontSize:'0.9rem'}}>🟢</span>
+          <div>
+            <div style={{fontSize:'0.8rem', fontWeight:'700', color:'#86efac'}}>Sistem Siap</div>
+            <div style={{fontSize:'0.7rem', color:'rgba(255,255,255,0.45)', marginTop:'0.1rem'}}>Asisten AI terhubung dan siap membantu analisis Anda</div>
+          </div>
+          <button style={{marginLeft:'auto', background:'transparent', border:'none', cursor:'pointer', color:'rgba(255,255,255,0.35)', fontSize:'0.65rem', padding:'0.2rem 0.4rem', borderRadius:'4px'}} title="Pengaturan Lanjutan" onClick={() => { setPromptDraft(promptConfig[editingPromptKey] as string); setShowPromptModal(true); }}>
+            ⚙ Lanjutan
+          </button>
         </div>
 
         <div className="tabs-header">
@@ -2150,7 +2151,7 @@ export default function Home() {
                   <div style={{marginBottom:'0.6rem', padding:'0.6rem 0.8rem', backgroundColor:'rgba(245,158,11,0.07)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:'6px'}}>
                     <div style={{fontSize:'0.7rem', color:'#f59e0b', fontWeight:'600', marginBottom:'0.4rem'}}>⏱ Jeda Antar-Segmen (Rate Limit)</div>
                     <select className="input-field" style={{width:'100%', padding:'0.4rem', fontSize:'0.75rem'}} value={chunkDelay} onChange={e => setChunkDelay(Number(e.target.value))}>
-                      <option value={0}>Tanpa jeda (cepat, berisiko 429)</option>
+                      <option value={0}>Tanpa jeda antar segmen (lebih cepat)</option>
                       <option value={11}>11 detik (aman untuk Groq Free)</option>
                       <option value={20}>20 detik (sangat aman)</option>
                       <option value={30}>30 detik (ultra aman)</option>
