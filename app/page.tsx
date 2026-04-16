@@ -506,7 +506,7 @@ export default function Home() {
         } else if (apiProvider === 'groq' || apiProvider === 'openai') {
             const base = apiProvider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
             // Groq: pakai llama-3.1-8b-instant (TPM 30.000) — jauh lebih aman dari llama-3.3-70b (TPM 12.000)
-            const model = apiProvider === 'groq' ? 'llama3-70b-8192' : 'gpt-4o-mini'; // Groq Llama 3 70B
+            const model = apiProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini'; // Groq Llama 3 70B
             // Groq: potong system prompt lebih longgar agar instruksi format JSON di tengah tidak hilang
             const safeSystem = apiProvider === 'groq' && systemPrompt.length > 4000
               ? systemPrompt.slice(0, 2000) + '\n...\n' + systemPrompt.slice(-2000)
@@ -2342,7 +2342,7 @@ export default function Home() {
                     <div style={{display:'flex', alignItems:'center', gap:'0.5rem', fontWeight:'600', marginBottom:'0.3rem', fontSize:'0.9rem'}}>
                        <span style={{width:'8px', height:'8px', borderRadius:'50%', background:'#22c55e', display:'inline-block'}}></span> Provider: Groq Llama
                     </div>
-                    Model Teraktifasi: <strong>llama3-70b-8192</strong><br/>
+                    Model Teraktifasi: <strong>llama-3.3-70b-versatile</strong><br/>
                     <span style={{fontSize:'0.75rem', color:'rgba(255,255,255,0.4)', display:'block', marginTop:'0.4rem'}}>
                        Dapatkan API Key gratis di <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{color:'#60a5fa', textDecoration:'underline'}}>console.groq.com/keys</a>
                     </span>
