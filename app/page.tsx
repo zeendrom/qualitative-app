@@ -220,6 +220,7 @@ export default function Home() {
   
   // AI State
   const [apiKey, setApiKey] = useState<string>('');
+  const [backupApiKey, setBackupApiKey] = useState<string>('');
   const [chatInput, setChatInput] = useState<string>('');
   const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('groq'); // Default: Groq Llama
   const [draftParameter, setDraftParameter] = useState('');
@@ -296,6 +297,7 @@ export default function Home() {
 
   const [promptConfig, setPromptConfig] = useState<PromptConfig>(DEFAULT_PROMPTS);
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'prompt' | 'api'>('api');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [editingPromptKey, setEditingPromptKey] = useState<keyof PromptConfig>('openCoding');
   const [promptDraft, setPromptDraft] = useState('');
@@ -2319,46 +2321,91 @@ export default function Home() {
       {/* PROMPT EDITOR MODAL */}
       {showPromptModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{maxWidth: '800px'}}>
-            <div className="modal-header">
-              <h3>⚙️ Pengaturan Prompt AI</h3>
-              <button className="btn-small btn-outline" style={{border:'none'}} onClick={() => setShowPromptModal(false)}>✕</button>
+          <div className="modal-content" style={{maxWidth: '820px', width: '95vw', maxHeight: '95vh'}}>
+            <div className="modal-header" style={{flexDirection:'column', gap:'0.8rem', alignItems:'stretch'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h3 style={{margin:0}}>⚙️ Pengaturan Lanjutan</h3>
+                <button className="btn-small btn-outline" style={{border:'none'}} onClick={() => setShowPromptModal(false)}>✕</button>
+              </div>
+              <div style={{display:'flex', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.2rem'}}>
+                {([['api','🔑 Konfigurasi API'],['prompt','📝 Pengaturan Prompt']] as const).map(([k,label]) => (
+                  <button key={k} onClick={() => setSettingsTab(k as any)} style={{padding:'0.4rem 1rem', borderRadius:'8px', fontSize:'0.85rem', fontWeight:'600', cursor:'pointer', border:'none', background: settingsTab === k ? '#3b82f6' : 'rgba(255,255,255,0.08)', color: settingsTab === k ? 'white' : 'rgba(255,255,255,0.5)', whiteSpace:'nowrap', transition:'0.2s'}}>{label}</button>
+                ))}
+              </div>
             </div>
             
-            <div className="modal-body" style={{display:'flex', gap:'1rem', padding:'1.5rem', height:'65vh'}}>
-               <div style={{flex:'0 0 220px', borderRight:'1px solid var(--border-color)', paddingRight:'1rem', display:'flex', flexDirection:'column', gap:'0.5rem'}}>
-                  {PROMPT_META.map(meta => (
-                     <div key={meta.key} className={`dropdown-item ${editingPromptKey === meta.key ? 'active' : ''}`} style={{textAlign:'left', padding:'0.8rem', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'0.3rem'}} onClick={() => {
-                        setEditingPromptKey(meta.key);
-                        setPromptDraft(promptConfig[meta.key] as string);
-                     }}>
-                        <div style={{fontWeight:'bold', color:'var(--text-primary)'}}>{meta.icon} {meta.label}</div>
+            <div className="modal-body" style={{display:'flex', gap:'1rem', padding:'1.5rem', height:'60vh', overflowY:'auto'}}>
+              
+              {settingsTab === 'api' && (
+                <div style={{flex:1, display:'flex', flexDirection:'column', gap:'1.2rem', paddingRight:'0.5rem'}}>
+                  <div style={{padding:'1rem', borderRadius:'8px', background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.2)', fontSize:'0.85rem', color:'#86efac', lineHeight:'1.6'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'0.5rem', fontWeight:'600', marginBottom:'0.3rem', fontSize:'0.9rem'}}>
+                       <span style={{width:'8px', height:'8px', borderRadius:'50%', background:'#22c55e', display:'inline-block'}}></span> Provider: Groq Llama
+                    </div>
+                    Model Teraktifasi: <strong>llama3-70b-8192</strong><br/>
+                    <span style={{fontSize:'0.75rem', color:'rgba(255,255,255,0.4)', display:'block', marginTop:'0.4rem'}}>
+                       Dapatkan API Key gratis di <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{color:'#60a5fa', textDecoration:'underline'}}>console.groq.com/keys</a>
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{fontSize:'0.85rem', fontWeight:'600', display:'block', marginBottom:'0.5rem', color:'var(--text-secondary)'}}>🔑 API Key Utama</label>
+                    <input type="password" spellCheck={false} className="input-field" placeholder="gsk_..." value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('app_groq_apiKey', e.target.value); }} style={{width:'100%', padding:'0.8rem 1rem', fontSize:'0.95rem', borderRadius:'8px', fontFamily:'monospace'}} />
+                    <div style={{fontSize:'0.75rem', color:'rgba(255,255,255,0.4)', marginTop:'0.4rem', lineHeight:'1.4'}}>Digunakan untuk menghubungkan asisten ke sistem Anda.</div>
+                  </div>
+
+                  <div>
+                    <label style={{fontSize:'0.85rem', fontWeight:'600', display:'block', marginBottom:'0.5rem', color:'var(--text-secondary)'}}>
+                       🛡 API Key Cadangan <span style={{fontSize:'0.7rem', fontWeight:'400', color:'rgba(255,255,255,0.3)'}}>(Fallback Otomatis)</span>
+                    </label>
+                    <input type="password" spellCheck={false} className="input-field" placeholder="gsk_... (opsional)" value={backupApiKey} onChange={e => { setBackupApiKey(e.target.value); localStorage.setItem('app_groq_backupApiKey', e.target.value); }} style={{width:'100%', padding:'0.8rem 1rem', fontSize:'0.95rem', borderRadius:'8px', fontFamily:'monospace'}} />
+                    <div style={{fontSize:'0.75rem', color:'rgba(255,255,255,0.4)', marginTop:'0.4rem', lineHeight:'1.4'}}>Opsional: Sistem otomatis beralih ke kunci ini secara transparan jika API utama Anda mendadak terkena batas kuota (*Rate Limit*) di tengah proses auto-coding.</div>
+                  </div>
+
+                  <div style={{marginTop:'auto', padding:'0.9rem', borderRadius:'8px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', fontSize:'0.75rem', color:'rgba(255,255,255,0.45)', lineHeight:'1.6'}}>
+                    💡 <strong style={{color:'rgba(255,255,255,0.7)'}}>Strategi Riset:</strong> Akun gratis (Free Tier) memberikan ~30 instruksi/menit. Menyediakan 2 API Key dari akun yang berbeda akan mengeliminasi kendala tersebut, menciptakan arus analisis data kualitatif tanpa henti.
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'prompt' && (
+                <>
+                  <div style={{flex:'0 0 220px', borderRight:'1px solid var(--border-color)', paddingRight:'1rem', display:'flex', flexDirection:'column', gap:'0.4rem', overflowY:'auto'}}>
+                     {PROMPT_META.map(meta => (
+                        <div key={meta.key} className={`dropdown-item ${editingPromptKey === meta.key ? 'active' : ''}`} style={{textAlign:'left', padding:'0.7rem 0.8rem', borderRadius:'6px', display:'flex', flexDirection:'column', gap:'0.2rem'}} onClick={() => {
+                           setEditingPromptKey(meta.key);
+                           setPromptDraft(promptConfig[meta.key] as string);
+                        }}>
+                           <div style={{fontWeight:'bold', color:'var(--text-primary)', fontSize:'0.85rem'}}>{meta.icon} {meta.label}</div>
+                        </div>
+                     ))}
+                  </div>
+                  
+                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:'0.8rem', border:'1px solid var(--border-color)', borderRadius:'8px', padding:'1rem', backgroundColor:'rgba(0,0,0,0.15)'}}>
+                     <div style={{fontSize:'0.8rem', color:'var(--text-secondary)', lineHeight:'1.5', paddingBottom:'0.5rem', borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                        {PROMPT_META.find(m => m.key === editingPromptKey)?.description}
                      </div>
-                  ))}
-               </div>
-               
-               <div style={{flex:1, display:'flex', flexDirection:'column', gap:'0.8rem', border:'1px solid var(--border-color)', borderRadius:'8px', padding:'1rem', backgroundColor:'rgba(0,0,0,0.2)'}}>
-                  <div style={{fontSize:'0.8rem', color:'var(--text-secondary)', lineHeight:'1.5'}}>
-                     {PROMPT_META.find(m => m.key === editingPromptKey)?.description}
+                     <textarea 
+                        spellCheck={false}
+                        style={{flex:1, width:'100%', resize:'none', backgroundColor:'transparent', color:'var(--text-primary)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'1rem', fontFamily:'monospace', fontSize:'0.85rem', lineHeight:'1.5', outline:'none'}} 
+                        value={promptDraft} 
+                        onChange={(e) => setPromptDraft(e.target.value)} 
+                     />
+                     <div style={{display:'flex', justifyContent:'space-between', paddingTop:'0.5rem'}}>
+                        <button className="btn-outline btn-small" style={{color:'#f87171', borderColor:'rgba(248,113,113,0.3)', background:'rgba(248,113,113,0.05)'}} onClick={() => {
+                           if(confirm('Kembalikan ke prompt induktif bawaan?')) {
+                              setPromptDraft(DEFAULT_PROMPTS[editingPromptKey]);
+                           }
+                        }}>↺ Kembalikan Default</button>
+                        
+                        <button className="btn-small" style={{backgroundColor:'#3b82f6', color:'white', fontWeight:'600'}} onClick={() => {
+                           setPromptConfig(prev => ({...prev, [editingPromptKey]: promptDraft}));
+                           alert('Instruksi AI telah dikustomisasi! Pengaturan aktif untuk analisis dokumen berikutnya.');
+                        }}>💾 Simpan Prompt Analisis</button>
+                     </div>
                   </div>
-                  <textarea 
-                     style={{flex:1, width:'100%', resize:'none', backgroundColor:'transparent', color:'var(--text-primary)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'4px', padding:'1rem', fontFamily:'monospace', fontSize:'0.85rem', lineHeight:'1.5', outline:'none'}} 
-                     value={promptDraft} 
-                     onChange={(e) => setPromptDraft(e.target.value)} 
-                  />
-                  <div style={{display:'flex', justifyContent:'space-between'}}>
-                     <button className="btn-outline btn-small" style={{color:'#fca5a5', borderColor:'transparent'}} onClick={() => {
-                        if(confirm('Kembalikan ke prompt default asli?')) {
-                           setPromptDraft(DEFAULT_PROMPTS[editingPromptKey]);
-                        }
-                     }}>↺ Reset ke Default</button>
-                     
-                     <button className="btn-small" style={{backgroundColor:'#3b82f6', color:'white'}} onClick={() => {
-                        setPromptConfig(prev => ({...prev, [editingPromptKey]: promptDraft}));
-                        alert('Prompt berhasil disimpan! Perubahan sudah aktif untuk eksekusi selanjutnya.');
-                     }}>💾 Simpan Prompt Ini</button>
-                  </div>
-               </div>
+                </>
+              )}
             </div>
           </div>
         </div>
