@@ -221,7 +221,7 @@ export default function Home() {
   // AI State
   const [apiKey, setApiKey] = useState<string>('');
   const [chatInput, setChatInput] = useState<string>('');
-  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('gemini');
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('groq'); // Default: Groq Llama
   const [draftParameter, setDraftParameter] = useState('');
   const [viewingProtocolId, setViewingProtocolId] = useState<string | null>(null);
   const [showProtocolDiffModal, setShowProtocolDiffModal] = useState(false);
@@ -504,7 +504,7 @@ export default function Home() {
         } else if (apiProvider === 'groq' || apiProvider === 'openai') {
             const base = apiProvider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
             // Groq: pakai llama-3.1-8b-instant (TPM 30.000) — jauh lebih aman dari llama-3.3-70b (TPM 12.000)
-            const model = apiProvider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
+            const model = apiProvider === 'groq' ? 'llama3-70b-8192' : 'gpt-4o-mini'; // Groq Llama 3 70B
             // Groq: potong system prompt lebih longgar agar instruksi format JSON di tengah tidak hilang
             const safeSystem = apiProvider === 'groq' && systemPrompt.length > 4000
               ? systemPrompt.slice(0, 2000) + '\n...\n' + systemPrompt.slice(-2000)
