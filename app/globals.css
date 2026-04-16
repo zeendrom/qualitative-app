@@ -1,7 +1,7 @@
-:root {
-  --bg-color: #000000; 
-  --panel-bg: #0a0a0a; 
-  --text-primary: #ededed;
+:root {\n  --header-height: 60px;
+  --bg-color: #0c0c0d; 
+  --panel-bg: #121214; 
+  --text-primary: #e4e4e7;
   --text-secondary: #71717a;
   --accent: #ffffff;
   --border-color: #27272a;
@@ -84,7 +84,7 @@ p { color: var(--text-secondary); line-height: 1.6; margin-bottom: 1rem; font-si
 .text-content-wrapper { font-size: 0.95rem; line-height: 1.8; color: var(--text-primary); padding: 5rem 10%; max-width: 900px; margin: 0 auto; min-height: 80vh; }
 .matrix-wrapper { font-size: 0.95rem; line-height: 1.6; color: var(--text-primary); padding: 2rem; width: 100%; min-height: 80vh; }
 
-.text-paragraph { margin-bottom: 1.5rem; position: relative; }
+.text-paragraph { margin-bottom: 1.5rem; position: relative; max-width: 75ch; margin-left: auto; margin-right: auto; line-height: 1.8; }
 
 /* Table Resizing */
 th { position: relative; }
@@ -176,3 +176,4 @@ table.fixed-table td, table.fixed-table th {
 .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
 .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
 .modal-footer { padding: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 1rem; }
+\nthead th { position: sticky; top: var(--header-height, 0); z-index: 20; background-color: var(--panel-bg); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }\ntbody tr:nth-child(even) { background-color: rgba(255,255,255,0.02); }\ntbody tr:hover { background-color: rgba(255,255,255,0.04); transition: background-color 0.2s; }

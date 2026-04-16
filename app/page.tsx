@@ -72,14 +72,24 @@ const deleteFromIDB = (key: string): Promise<void> => {
 
 
 const ChunkRenderer = React.memo(({ 
-    chunk, cAnns, cSugs, codes, 
+    chunk, cAnns, cSugs, codes, isAnalyzing, 
     onSetResolvingAnn, onRemoveAnnotation, onAcceptSuggestion, onRejectSuggestion, onHandleMouseUp 
 }: any) => {
+
+// Format speaker using regex
+const formatSpeaker = (text: string) => {
+    const parts = text.split(/^([A-Za-z]+:)/);
+    if (parts.length > 1) {
+        return <><span style={{color:'var(--text-secondary)', fontStyle:'italic', fontWeight:'500'}}>{parts[1]}</span>{parts[2]}</>;
+    }
+    return text;
+};
+
     let renderElements: React.ReactNode[] = [];
     const allActive = [...cAnns, ...cSugs];
     
     if (allActive.length === 0) {
-        renderElements.push(<span key="full">{chunk.content}</span>);
+        renderElements.push(<span key="full">{formatSpeaker(chunk.content)}</span>);
     } else {
         const points = new Set<number>([0, chunk.content.length]);
         allActive.forEach((a: any) => { points.add(a.startIndex); points.add(a.endIndex); });
@@ -95,7 +105,7 @@ const ChunkRenderer = React.memo(({
             const oSugs = cSugs.filter((a: any) => sIdx >= a.startIndex && eIdx <= a.endIndex);
             
             if (oAnns.length === 0 && oSugs.length === 0) {
-                renderElements.push(<span key={`text-${sIdx}`}>{segText}</span>);
+                renderElements.push(<span key={`text-${sIdx}`}>{sIdx === 0 ? formatSpeaker(segText) : segText}</span>);
             } else {
                 const pAnn = oAnns.length > 0 ? oAnns[0] : null;
                 const pCode = pAnn ? codes.find((c: any) => c.id === pAnn.codeId) : null;
@@ -142,18 +152,21 @@ const ChunkRenderer = React.memo(({
                 
                 renderElements.push(
                     <span key={`seg-${sIdx}`} className="highlighted-segment" style={{backgroundColor: bgColor, borderBottom: btmBorder}}>
-                        {segText}
+                        {sIdx === 0 ? formatSpeaker(segText) : segText}
                         {sups}
                     </span>
                 );
             }
         }
     }
-    return <div key={chunk.id} className="text-paragraph" style={{whiteSpace:'pre-wrap', marginBottom:'1.5rem'}} onMouseUp={(e) => onHandleMouseUp(chunk.id, chunk.content, e)}>{renderElements}</div>
+    return <div key={chunk.id} className="text-paragraph" style={{whiteSpace:'pre-wrap', marginBottom:'1.5rem'}} onMouseUp={(e) => onHandleMouseUp(chunk.id, chunk.content, e)}>{renderElements}
+    {isAnalyzing && <span style={{display:"inline-flex", gap:"4px", marginLeft:"8px", padding:"2px 6px", borderRadius:"12px", backgroundColor:"rgba(139,92,246,0.1)", border:"1px solid rgba(139,92,246,0.3)", color:"#8b5cf6", fontSize:"0.75rem", animation:"pulseGlow 1.5s infinite"}}><span className="spinner">⚙️</span> Menganalisis...</span>}
+</div>
 }, (prevProps: any, nextProps: any) => {
     if (prevProps.chunk.content !== nextProps.chunk.content) return false;
     if (prevProps.cAnns.length !== nextProps.cAnns.length) return false;
     if (prevProps.cSugs.length !== nextProps.cSugs.length) return false;
+    if (prevProps.isAnalyzing !== nextProps.isAnalyzing) return false;
     
     // Check IDs and ambiguous flags for strict equality
     for(let i=0; i<prevProps.cAnns.length; i++) {
@@ -200,6 +213,7 @@ export default function Home() {
   const [isRightOpen, setIsRightOpen] = useState(true);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isAutoCoding, setIsAutoCoding] = useState(false);
+  const [analyzingChunkId, setAnalyzingChunkId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'autocode'>('chat');
   const [codingProgress, setCodingProgress] = useState<{chunkIdx: number; total: number; docName: string; chunkPreview: string; latestCodes: string[]; countdown?: number} | null>(null);
   const [chunkDelay, setChunkDelay] = useState<number>(0);
@@ -255,6 +269,7 @@ export default function Home() {
 
   const [promptConfig, setPromptConfig] = useState<PromptConfig>(DEFAULT_PROMPTS);
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [editingPromptKey, setEditingPromptKey] = useState<keyof PromptConfig>('openCoding');
   const [promptDraft, setPromptDraft] = useState('');
 
@@ -542,12 +557,14 @@ export default function Home() {
             if (cancelAutoCodingRef.current) {
                 // Simpan hasil parsial yang sudah ada sebelum berhenti
                 setCodes([...newCodes]);
+                setAnalyzingChunkId(null);
                 setAiSuggestions([...newSuggestions]);
                 alert(`⛔ Dibatalkan. Hasil parsial dari ${successCount} segmen telah disimpan.`);
                 break;
             }
 
             const chunk = activeChunks[ci];
+            setAnalyzingChunkId(chunk.id);
             const informantName = activeDoc ? activeDoc.title : 'Tidak diketahui';
 
             // Jeda antar-chunk jika ada setting delay (untuk menghindari rate limit)
@@ -726,6 +743,7 @@ export default function Home() {
         if (failCount > 0) alert(`Eksekusi selesai: ${successCount} berhasil, ${failCount} gagal.\nError log terakhir: ${lastErrStr}\n(Hasil parsial telah disimpan).`);
         
     } catch(e: any) { alert("Gagal memproses Laju Induktif (Open Coding): " + e.message); }
+    setAnalyzingChunkId(null);
     setIsAutoCoding(false);
     setCodingProgress(null);
   };
@@ -1169,10 +1187,10 @@ export default function Home() {
 
       {/* CENTER - TEXT VIEWER / TABLE VIEWER */}
       <div className="main-view">
-        {!isLeftOpen && <button style={{position:'fixed', top:'1rem', left:'1rem', zIndex:200, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', color:'var(--text-primary)', border:'1px solid var(--border-color)', borderRadius:'4px', padding:'0.3rem 0.6rem', cursor:'pointer'}} onClick={() => setIsLeftOpen(true)}>☰</button>}
-        {!isRightOpen && <button style={{position:'fixed', top:'1rem', right:'1rem', zIndex:200, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', color:'var(--text-primary)', border:'1px solid var(--border-color)', borderRadius:'4px', padding:'0.3rem 0.6rem', cursor:'pointer'}} onClick={() => setIsRightOpen(true)}>☰</button>}
         
-        <div style={{position:'sticky', top:0, zIndex:100, display:'flex', justifyContent:'center', gap:'2rem', fontFamily:'monospace', fontSize:'0.85rem', backgroundColor:'transparent', padding:'1rem 2rem', borderBottom:'1px solid rgba(255,255,255,0.05)', marginLeft:'-2rem', marginRight:'-2rem', marginBottom:'2rem'}}>
+        <div style={{position:'sticky', top:0, zIndex:100, height:'var(--header-height, 60px)', display:'flex', alignItems:'center', justifyContent:'space-between', fontFamily:'monospace', fontSize:'0.85rem', backgroundColor:'var(--bg-color)', padding:'0 2rem', borderBottom:'1px solid rgba(255,255,255,0.05)', marginLeft:'-2rem', marginRight:'-2rem', marginBottom:'2rem'}}>
+          <button title="Buka/Tutup Panel Dokumen" style={{background:'transparent', border:'1px solid var(--border-color)', color: isLeftOpen ? 'var(--text-primary)' : 'var(--text-secondary)', borderRadius:'4px', padding:'0.3rem 0.6rem', cursor:'pointer', fontSize:'0.75rem', transition:'all 0.2s'}} onClick={() => setIsLeftOpen(p=>!p)}>☰ Dokumen</button>
+          <div style={{display:'flex', gap:'2rem', alignItems:'center'}}>
            <span onClick={() => setMainViewMode('text')} style={{cursor:'pointer', color: mainViewMode === 'text' ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom: mainViewMode === 'text' ? '1px solid' : 'none', letterSpacing:'1px', paddingBottom:'0.2rem'}}>NASKAH</span>
            
            <div 
@@ -1192,6 +1210,8 @@ export default function Home() {
 
            <span onClick={() => setMainViewMode('visual')} style={{cursor:'pointer', color: mainViewMode === 'visual' ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom: mainViewMode === 'visual' ? '1px solid' : 'none', letterSpacing:'1px', paddingBottom:'0.2rem'}}>VISUAL</span>
            <span onClick={() => setMainViewMode('audit')} style={{cursor:'pointer', color: mainViewMode === 'audit' ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom: mainViewMode === 'audit' ? '1px solid' : 'none', letterSpacing:'1px', paddingBottom:'0.2rem'}}>AUDIT</span>
+                  </div>
+          <button title="Buka/Tutup Panel Asisten" style={{background:'transparent', border:'1px solid var(--border-color)', color: isRightOpen ? 'var(--text-primary)' : 'var(--text-secondary)', borderRadius:'4px', padding:'0.3rem 0.6rem', cursor:'pointer', fontSize:'0.75rem', transition:'all 0.2s'}} onClick={() => setIsRightOpen(p=>!p)}>Asisten ☰</button>
         </div>
 
         {mainViewMode === 'audit' ? (
@@ -1647,43 +1667,21 @@ export default function Home() {
                  </div>
                </div>
              )}
-             {textChunks.filter(c => c.documentId === currentDoc.id).sort((a,b)=>a.sequenceNum - b.sequenceNum).map((chunk) => {
-               let renderElements: React.ReactNode[] = [];
-               const cAnns = annotations.filter(a => a.chunkId === chunk.id).sort((a,b) => a.startIndex - b.startIndex);
-               if (cAnns.length === 0) { renderElements.push(<span key="full">{chunk.content}</span>); }
-               else {
-                 let lastIdx = 0;
-                 cAnns.forEach((ann, idx) => {
-                   if (ann.startIndex > lastIdx) renderElements.push(<span key={`text-${idx}`}>{chunk.content.substring(lastIdx, ann.startIndex)}</span>);
-                   const code = codes.find(c => c.id === ann.codeId);
-                   if (ann.ambiguous) {
-                     renderElements.push(
-                       <span key={`ann-${ann.id}`} id={`ann-${ann.id}`}
-                         className="highlighted-segment"
-                         style={{backgroundColor:'rgba(251,191,36,0.15)', borderBottom:'2px dashed #f59e0b'}}
-                       >
-                         {chunk.content.substring(ann.startIndex, ann.endIndex)}
-                         <sup
-                           style={{backgroundColor:'#f59e0b', color:'#000', padding:'0.1rem 0.4rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', fontWeight:'bold'}}
-                           title={`⚠️ Klik untuk membuka Resolver Konflik — kutipan ini muncul di ${(ann.candidatePositions?.length || 1)} lokasi`}
-                           onClick={(e) => { e.stopPropagation(); setResolvingAnn(ann); }}
-                         >⚠️ {code?.name || 'Periksa'}</sup>
-                       </span>
-                     );
-                   } else {
-                     renderElements.push(
-                       <span key={`ann-${ann.id}`} id={`ann-${ann.id}`} className="highlighted-segment" style={{backgroundColor: `${code?.color || '#9ca3af'}40`, borderBottomColor: code?.color || '#9ca3af'}}>
-                         {chunk.content.substring(ann.startIndex, ann.endIndex)}
-                         <sup style={{backgroundColor: code?.color || '#9ca3af', color:'white', padding:'0.1rem 0.3rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem'}} onClick={(e) => removeAnnotation(ann.id, e)} title={`Hapus [${ann.createdBy}]`}>[{ann.createdBy[0]}] {code?.name || 'Catatan'}</sup>
-                       </span>
-                     );
-                   }
-                   lastIdx = ann.endIndex;
-                 });
-                 if (lastIdx < chunk.content.length) renderElements.push(<span key={`end`}>{chunk.content.substring(lastIdx)}</span>);
-               }
-               return <div key={chunk.id} className="text-paragraph" style={{whiteSpace:'pre-wrap', marginBottom:'1.5rem'}} onMouseUp={(e) => handleMouseUp(chunk.id, chunk.content, e)}>{renderElements}</div>
-             })}
+             {textChunks.filter(c => c.documentId === currentDoc.id).sort((a,b)=>a.sequenceNum - b.sequenceNum).map((chunk) => (
+                <ChunkRenderer
+                  key={chunk.id}
+                  chunk={chunk}
+                  cAnns={annotations.filter(a => a.chunkId === chunk.id)}
+                  cSugs={aiSuggestions.filter(a => a.chunkId === chunk.id)}
+                  codes={codes}
+                  isAnalyzing={analyzingChunkId === chunk.id}
+                  onSetResolvingAnn={setResolvingAnn}
+                  onRemoveAnnotation={removeAnnotation}
+                  onAcceptSuggestion={acceptSuggestion}
+                  onRejectSuggestion={(sug: Annotation) => setAiSuggestions(prev => prev.filter(x=>x.id!==sug.id))}
+                  onHandleMouseUp={handleMouseUp}
+                />
+              ))}
           </div>
         ) : (
           <div style={{display:'flex', height:'100%', alignItems:'center', justifyContent:'center', color:'var(--text-secondary)'}}>
