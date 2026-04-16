@@ -219,8 +219,8 @@ export default function Home() {
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   
   // AI State
-  const [apiKey, setApiKey] = useState<string>('');
-  const [backupApiKey, setBackupApiKey] = useState<string>('');
+  const [apiKey, setApiKey] = useState<string>(process.env.NEXT_PUBLIC_GROQ_API_KEY || '');
+  const [backupApiKey, setBackupApiKey] = useState<string>(process.env.NEXT_PUBLIC_GROQ_BACKUP_KEY || '');
   const [chatInput, setChatInput] = useState<string>('');
   const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('groq'); // Default: Groq Llama
   const [draftParameter, setDraftParameter] = useState('');
