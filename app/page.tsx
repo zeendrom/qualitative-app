@@ -1141,7 +1141,7 @@ export default function Home() {
                      }}>
                        <div style={{flex:1, minWidth:0}}>
                          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.4rem'}}>
-                           <div style={{fontSize:'1rem', fontWeight:'600', color:'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{projName}</div>
+                           <div style={{flex: 1, minWidth: 0, marginRight: '1rem', fontSize:'1rem', fontWeight:'600', color:'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}} title={projName}>{projName}</div>
                            <span style={{fontSize:'0.7rem', color:'var(--text-secondary)', backgroundColor:'rgba(255,255,255,0.05)', padding:'0.2rem 0.5rem', borderRadius:'4px'}}>{timeLabel}</span>
                          </div>
                          <div style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', gap:'1rem'}}>

@@ -185,5 +185,5 @@ tbody tr:hover { background-color: rgba(255,255,255,0.04); transition: backgroun
 /* Project Cards */
 .project-card { padding: 1rem; background-color: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; display: flex; justify-content: space-between; alignItems: center; transition: all 0.2s; cursor: pointer; }
 .project-card:hover { background-color: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); }
-.project-card .delete-action { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-.project-card:hover .delete-action { opacity: 1; pointer-events: auto; }
+.project-card .delete-action { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s; }
+.project-card:hover .delete-action { opacity: 1; visibility: visible; pointer-events: auto; }
