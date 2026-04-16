@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PromptConfig, DEFAULT_PROMPTS, PROMPT_META, buildQaChatPrompt, sanitizePromptConfig } from './prompts';
 
 // --- DB SCHEMA TYPES (8 Normalized Tables) ---
@@ -70,7 +70,107 @@ const deleteFromIDB = (key: string): Promise<void> => {
   });
 };
 
+
+const ChunkRenderer = React.memo(({ 
+    chunk, cAnns, cSugs, codes, 
+    onSetResolvingAnn, onRemoveAnnotation, onAcceptSuggestion, onRejectSuggestion, onHandleMouseUp 
+}: any) => {
+    let renderElements: React.ReactNode[] = [];
+    const allActive = [...cAnns, ...cSugs];
+    
+    if (allActive.length === 0) {
+        renderElements.push(<span key="full">{chunk.content}</span>);
+    } else {
+        const points = new Set<number>([0, chunk.content.length]);
+        allActive.forEach((a: any) => { points.add(a.startIndex); points.add(a.endIndex); });
+        const sortedPoints = Array.from(points).sort((a,b) => a - b);
+        
+        for (let i = 0; i < sortedPoints.length - 1; i++) {
+            const sIdx = sortedPoints[i];
+            const eIdx = sortedPoints[i+1];
+            if (sIdx === eIdx) continue;
+            
+            const segText = chunk.content.substring(sIdx, eIdx);
+            const oAnns = cAnns.filter((a: any) => sIdx >= a.startIndex && eIdx <= a.endIndex);
+            const oSugs = cSugs.filter((a: any) => sIdx >= a.startIndex && eIdx <= a.endIndex);
+            
+            if (oAnns.length === 0 && oSugs.length === 0) {
+                renderElements.push(<span key={`text-${sIdx}`}>{segText}</span>);
+            } else {
+                const pAnn = oAnns.length > 0 ? oAnns[0] : null;
+                const pCode = pAnn ? codes.find((c: any) => c.id === pAnn.codeId) : null;
+                const hasSug = oSugs.length > 0;
+                const sCode = hasSug ? codes.find((c: any) => c.id === oSugs[0].codeId) : null;
+                
+                const bgColor = pCode ? `${pCode.color}40` : (hasSug ? 'rgba(255,255,255,0.05)' : 'transparent');
+                const btmBorder = hasSug ? `2px dotted ${sCode?.color || '#a5b4fc'}` : (pCode ? `2px solid ${pCode.color}` : 'none');
+                
+                const sups: React.ReactNode[] = [];
+                oAnns.forEach((ann: any) => {
+                    if (sIdx === ann.startIndex) {
+                        const code = codes.find((x: any) => x.id === ann.codeId);
+                        if (ann.ambiguous) {
+                           sups.push(
+                            <sup key={`amb-${ann.id}`} style={{backgroundColor:'#f59e0b', color:'#000', padding:'0.1rem 0.4rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', fontWeight:'bold'}} title="⚠️ Klik untuk membuka Resolver Konflik" onClick={(e) => { e.stopPropagation(); onSetResolvingAnn(ann); }}>⚠️ {code?.name || 'Periksa'}</sup>
+                           );
+                        } else {
+                           sups.push(
+                            <sup key={`man-${ann.id}`} id={`ann-${ann.id}`} style={{backgroundColor: code?.color || '#9ca3af', color:'white', padding:'0.1rem 0.3rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem'}} onClick={(e) => onRemoveAnnotation(ann.id, e)} title={`Hapus [${ann.createdBy}]`}>[{ann.createdBy[0]}] {code?.name || 'Catatan'}</sup>
+                           );
+                        }
+                    }
+                });
+                
+                oSugs.forEach((sug: any) => {
+                    if (sIdx === sug.startIndex) {
+                        const code = codes.find((x: any) => x.id === sug.codeId);
+                        if (sug.ambiguous) {
+                            sups.push(
+                              <sup key={`amb-sug-${sug.id}`} style={{backgroundColor:'#f59e0b', color:'#000', padding:'0.1rem 0.4rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', fontWeight:'bold'}} title="⚠️ Klik untuk membuka Resolver Konflik" onClick={(e) => { e.stopPropagation(); onSetResolvingAnn(sug); }}>⚠️ draf: {code?.name || 'Periksa'}</sup>
+                            );
+                        } else {
+                            sups.push(
+                              <sup key={`sug-${sug.id}`} id={`ann-${sug.id}`} style={{backgroundColor: 'transparent', border:`1px solid ${code?.color || '#a5b4fc'}`, color: code?.color || '#a5b4fc', padding:'0.1rem 0.3rem', borderRadius:'4px', cursor:'pointer', marginLeft:'4px', fontSize:'0.65rem', display:'inline-flex', alignItems:'center', gap:'4px'}} title={`Saran AI: ${code?.name}`}>
+                                ✨ {code?.name} 
+                                <span onClick={(e) => { e.stopPropagation(); onAcceptSuggestion(sug, e); }} style={{color:'#10b981', fontWeight:'bold', cursor:'pointer', fontSize:'0.75rem'}}>✔</span>
+                                <span onClick={(e) => { e.stopPropagation(); onRejectSuggestion(sug, e); }} style={{color:'#ef4444', fontWeight:'bold', cursor:'pointer', fontSize:'0.75rem'}}>✖</span>
+                              </sup>
+                            );
+                        }
+                    }
+                });
+                
+                renderElements.push(
+                    <span key={`seg-${sIdx}`} className="highlighted-segment" style={{backgroundColor: bgColor, borderBottom: btmBorder}}>
+                        {segText}
+                        {sups}
+                    </span>
+                );
+            }
+        }
+    }
+    return <div key={chunk.id} className="text-paragraph" style={{whiteSpace:'pre-wrap', marginBottom:'1.5rem'}} onMouseUp={(e) => onHandleMouseUp(chunk.id, chunk.content, e)}>{renderElements}</div>
+}, (prevProps: any, nextProps: any) => {
+    if (prevProps.chunk.content !== nextProps.chunk.content) return false;
+    if (prevProps.cAnns.length !== nextProps.cAnns.length) return false;
+    if (prevProps.cSugs.length !== nextProps.cSugs.length) return false;
+    
+    // Check IDs and ambiguous flags for strict equality
+    for(let i=0; i<prevProps.cAnns.length; i++) {
+        if(prevProps.cAnns[i].id !== nextProps.cAnns[i].id) return false;
+        if(prevProps.cAnns[i].ambiguous !== nextProps.cAnns[i].ambiguous) return false;
+        if(prevProps.cAnns[i].startIndex !== nextProps.cAnns[i].startIndex) return false;
+    }
+    for(let i=0; i<prevProps.cSugs.length; i++) {
+        if(prevProps.cSugs[i].id !== nextProps.cSugs[i].id) return false;
+        if(prevProps.cSugs[i].ambiguous !== nextProps.cSugs[i].ambiguous) return false;
+        if(prevProps.cSugs[i].startIndex !== nextProps.cSugs[i].startIndex) return false;
+    }
+    return true; // No relevant changes, React can skip re-rendering this paragraph!
+});
+
 export default function Home() {
+
   // DB State (8 Relational Tables)
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectParameters, setProjectParameters] = useState<ProjectParameter[]>([]);
@@ -132,10 +232,13 @@ export default function Home() {
   const [showExportPickerModal, setShowExportPickerModal] = useState(false);
   // Ambiguity resolver state
   const [resolvingAnn, setResolvingAnn] = useState<Annotation | null>(null);
-  const acceptSuggestion = (s: Annotation, e?: React.MouseEvent) => {
+  const [syncModalDraft, setSyncModalDraft] = useState<Annotation | null>(null);
+  const [syncModalText, setSyncModalText] = useState("");
+
+  const acceptSuggestion = (s: Annotation, e?: any) => {
     if (e) e.stopPropagation();
-    setAiSuggestions(prev => prev.filter(x => x.id !== s.id));
-    setAnnotations(prev => [...prev, { ...s, createdBy: 'MANUAL', ambiguous: false, candidatePositions: undefined }]);
+    setSyncModalDraft(s);
+    setSyncModalText("");
   };
 
   const [ambigNavIdx, setAmbigNavIdx] = useState(0);
@@ -296,6 +399,19 @@ export default function Home() {
   const workingModelRef = useRef<string | null>(null);
   // Flag pembatalan auto-coding
   const cancelAutoCodingRef = useRef<boolean>(false);
+
+  
+  // --- Invalidasi Draf Otomatis ---
+  const prevProtocolIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (projectParameters.length === 0) return;
+    const currId = projectParameters.find(p => p.isActive)?.id || null;
+    if (prevProtocolIdRef.current !== null && prevProtocolIdRef.current !== currId) {
+       // Flush suggestions if active protocol changes
+       setAiSuggestions([]);
+    }
+    prevProtocolIdRef.current = currId;
+  }, [projectParameters]);
 
   const executeLLM = async (systemPrompt: string, userText: string): Promise<string> => {
     if (!apiKey.trim()) throw new Error("API Key kosong!");
@@ -693,7 +809,7 @@ export default function Home() {
     const activeProtocol = projectParameters.find(p => p.isActive);
     
     setAnnotations([...annotations, { 
-      id: crypto.randomUUID(), chunkId: selectionBox.chunkId, codeId: targetCodeId, parameterVersionId: activeProtocol?.id || 'orphan', quote: selectionBox.quote, rationale: newInitialNoting.trim(), createdBy: 'MANUAL', startIndex: selectionBox.startIndex, endIndex: selectionBox.endIndex
+      id: crypto.randomUUID(), chunkId: selectionBox.chunkId, codeId: targetCodeId, parameterVersionId: activeProtocol?.id || 'orphan', quote: selectionBox.quote, rationale: newInitialNoting.trim(), createdBy: 'MANUAL' as 'MANUAL', startIndex: selectionBox.startIndex, endIndex: selectionBox.endIndex
     }]);
     
     setSelectionBox(null); setNewCodeName(''); setNewInitialNoting(''); setDragPanelOffset({x:0,y:0}); window.getSelection()?.removeAllRanges();
@@ -1504,7 +1620,22 @@ export default function Home() {
            </div>
         ) : currentDoc ? (
           <div className="text-content-wrapper">
-             <h1>{currentDoc.title}</h1>
+             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+  <h1>{currentDoc.title}</h1>
+  {aiSuggestions.filter(a => textChunks.find(c => c.id===a.chunkId)?.documentId === currentDoc.id).length > 0 && (
+     <button onClick={() => {
+         const docChunks = new Set(textChunks.filter(c => c.documentId === currentDoc.id).map(c => c.id));
+         const sugsToAccept = aiSuggestions.filter(a => docChunks.has(a.chunkId));
+         if (sugsToAccept.length === 0) return;
+         if (!confirm(`Terima ${sugsToAccept.length} draf saran AI di dokumen ini? Rationale otomatis akan dikosongkan untuk intervensi manual Anda.`)) return;
+         setAiSuggestions(prev => prev.filter(x => !docChunks.has(x.chunkId)));
+         const newAnns = sugsToAccept.map(s => ({ ...s, createdBy: 'MANUAL' as 'MANUAL', ambiguous: false, candidatePositions: undefined, rationale: '' }));
+         setAnnotations(prev => [...prev, ...newAnns]);
+     }} style={{backgroundColor:'#10b981', color:'#fff', border:'none', padding:'0.5rem 1rem', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'0.85rem'}}>
+       ✔ Terima Massal Draf ({aiSuggestions.filter(a => textChunks.find(c => c.id===a.chunkId)?.documentId === currentDoc.id).length})
+     </button>
+  )}
+</div>
              <hr style={{borderColor:'var(--border-color)', margin:'1rem 0'}}/>
              {/* Banner peringatan khusus untuk anotasi yang perlu divalidasi */}
              {annotations.some(a => a.ambiguous && textChunks.find(tc => tc.id === a.chunkId)?.documentId === currentDoc.id) && (
