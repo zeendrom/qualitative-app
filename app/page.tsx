@@ -1113,18 +1113,19 @@ export default function Home() {
                   </div>
                 </div>
              ) : (
-                <div style={{display:'grid', gridTemplateColumns:'1fr', gap:'0.8rem', maxHeight:'350px', overflowY:'auto', paddingRight:'0.5rem'}}>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'1rem', maxHeight:'400px', overflowY:'auto', paddingRight:'0.5rem'}}>
                   {filteredSessions.length === 0 && (
-                    <div style={{padding:'2rem', textAlign:'center', color:'var(--text-secondary)', fontSize:'0.9rem'}}>Tidak ada proyek yang sesuai dengan pencarian Anda.</div>
+                    <div style={{gridColumn:'1 / -1', padding:'2rem', textAlign:'center', color:'var(--text-secondary)', fontSize:'0.9rem'}}>Tidak ada proyek yang sesuai dengan pencarian Anda.</div>
                   )}
                   {filteredSessions.map((session, idx) => {
                      const projId = session.projects?.[0]?.id;
                      const projName = session.projects?.[0]?.name || 'Untitled Project';
-                     const timeLabel = session.projects?.[0]?.updatedAt 
-                        ? new Date(session.projects[0].updatedAt).toLocaleString('id-ID', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
-                        : session.projects?.[0]?.createdAt 
-                          ? new Date(session.projects[0].createdAt).toLocaleString('id-ID', {day:'numeric', month:'short'}) 
-                          : 'Sesi Terakhir';
+                     let timeLabel = 'Sesi Terakhir';
+                     if (session.projects?.[0]?.updatedAt) {
+                         timeLabel = new Date(session.projects[0].updatedAt).toLocaleString('id-ID', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+                     } else if (session.projects?.[0]?.createdAt) {
+                         timeLabel = new Date(session.projects[0].createdAt).toLocaleString('id-ID', {day:'numeric', month:'short'});
+                     }
                      
                      return (
                      <div key={`${projId ?? 'orphan'}-${idx}`} className="project-card" onClick={() => {
@@ -1139,18 +1140,20 @@ export default function Home() {
                         if (session.annotationHistories) setAnnotationHistories(session.annotationHistories);
                         setAppScreen('workspace');
                      }}>
-                       <div style={{flex:1, minWidth:0}}>
-                         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.4rem'}}>
-                           <div className="text-truncate" style={{flex: 1, minWidth: 0, marginRight: '1rem', fontSize:'1rem', fontWeight:'600', color:'var(--text-primary)'}} title={projName}>{projName}</div>
-                           <span style={{fontSize:'0.7rem', color:'var(--text-secondary)', backgroundColor:'rgba(255,255,255,0.05)', padding:'0.2rem 0.5rem', borderRadius:'4px'}}>{timeLabel}</span>
-                         </div>
-                         <div style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', gap:'1rem'}}>
-                           <span>📄 {session.documents?.length || 0} Dokumen</span>
-                           <span>💬 {session.annotations?.length || 0} Kutipan/Anotasi</span>
-                           <span style={{opacity:0.5}}>Buka Ruang Kerja ➔</span>
-                         </div>
-                       </div>
-                       <button className="delete-action" onClick={(e) => { e.stopPropagation(); if (!confirm(`Hapus proyek "${projName}" secara permanen?`)) return; const k = projId || 'latest_session'; deleteFromIDB(k).catch(()=>{}); setSavedSessions(prev => prev.filter(x => x !== session)); }} style={{marginLeft:'1rem', background:'transparent', border:'none', cursor:'pointer', color:'#f87171', fontSize:'1.2rem', padding:'0.4rem', borderRadius:'4px'}} title="Hapus Proyek secara Permanen">🗑</button>
+                        <div className="text-truncate" style={{width: '100%', fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.8rem'}} title={projName}>
+                          {projName}
+                        </div>
+                        
+                        <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem', opacity: 0.8}}>
+                          <span>📄 {session.documents?.length || 0} Dokumen</span>
+                          <span>💬 {session.annotations?.length || 0} Kutipan</span>
+                        </div>
+
+                        <div style={{position: 'absolute', bottom: '1rem', fontSize: '0.65rem', opacity: 0.5}}>
+                          {timeLabel}
+                        </div>
+
+                        <button className="delete-action" onClick={(e) => { e.stopPropagation(); if (!confirm(`Hapus proyek "${projName}" secara permanen?`)) return; const k = projId || 'latest_session'; deleteFromIDB(k).catch(()=>{}); setSavedSessions(prev => prev.filter(x => x !== session)); }} style={{position: 'absolute', top: '0.5rem', right: '0.5rem', background:'transparent', border:'none', cursor:'pointer', color:'#f87171', fontSize:'1.1rem', padding:'0.4rem', borderRadius:'4px'}} title="Hapus Proyek secara Permanen">🗑</button>
                      </div>
                      );
                   })}
