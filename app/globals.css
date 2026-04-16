@@ -1,4 +1,5 @@
-:root {\n  --header-height: 60px;
+:root {
+  --header-height: 60px;
   --bg-color: #0c0c0d; 
   --panel-bg: #121214; 
   --text-primary: #e4e4e7;
@@ -176,4 +177,13 @@ table.fixed-table td, table.fixed-table th {
 .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
 .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
 .modal-footer { padding: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 1rem; }
-\nthead th { position: sticky; top: var(--header-height, 0); z-index: 20; background-color: var(--panel-bg); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }\ntbody tr:nth-child(even) { background-color: rgba(255,255,255,0.02); }\ntbody tr:hover { background-color: rgba(255,255,255,0.04); transition: background-color 0.2s; }
+
+thead th { position: sticky; top: var(--header-height, 0); z-index: 20; background-color: var(--panel-bg); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+tbody tr:nth-child(even) { background-color: rgba(255,255,255,0.02); }
+tbody tr:hover { background-color: rgba(255,255,255,0.04); transition: background-color 0.2s; }
+
+/* Project Cards */
+.project-card { padding: 1rem; background-color: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; display: flex; justify-content: space-between; alignItems: center; transition: all 0.2s; cursor: pointer; }
+.project-card:hover { background-color: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); }
+.project-card .delete-action { opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.project-card:hover .delete-action { opacity: 1; pointer-events: auto; }
