@@ -187,3 +187,6 @@ tbody tr:hover { background-color: rgba(255,255,255,0.04); transition: backgroun
 .project-card:hover { background-color: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); }
 .project-card .delete-action { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s; }
 .project-card:hover .delete-action { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* Text Truncation Utility */
+.text-truncate { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
