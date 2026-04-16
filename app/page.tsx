@@ -229,6 +229,12 @@ export default function Home() {
   // UI State
   const [appScreen, setAppScreen] = useState<'launcher' | 'workspace'>('launcher');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Dashboard UI State
+  const [viewMode, setViewMode] = useState<'Standar' | 'Profesional'>('Profesional');
+  const [visualTheme, setVisualTheme] = useState<'Slate' | 'Emerald' | 'Indigo'>('Slate');
+  const [density, setDensity] = useState(25);
+  const [projectThemeFilter, setProjectThemeFilter] = useState('Semua');
   const [savedSessions, setSavedSessions] = useState<any[]>([]);
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [isRightOpen, setIsRightOpen] = useState(true);
@@ -1064,117 +1070,191 @@ export default function Home() {
 
   // --- Rendering ---
   if (appScreen === 'launcher') {
+    const themeAccent = visualTheme === 'Emerald'
+      ? { bg: '#0a1a14', pill: '#10b981', ring: '#6ee7b7' }
+      : visualTheme === 'Indigo'
+        ? { bg: '#0e0c1e', pill: '#6366f1', ring: '#a5b4fc' }
+        : { bg: '#0a0f1e', pill: '#3b82f6', ring: '#93c5fd' };
+
+    const cardGap = `${Math.round(density * 0.4)}px`;
+
     const filteredSessions = savedSessions.filter(s => {
-      const pName = s.projects?.[0]?.name || 'Untitled Project';
-      return pName.toLowerCase().includes(searchQuery.toLowerCase());
+      const pName = (s.projects?.[0]?.name || '').toLowerCase();
+      const matchSearch = pName.includes(searchQuery.toLowerCase());
+      const matchFilter = projectThemeFilter === 'Semua' || pName.includes(projectThemeFilter.toLowerCase());
+      return matchSearch && matchFilter;
     });
 
+    const uniqueFilters: string[] = ['Semua', ...Array.from(new Set(
+      savedSessions.map((s: any) => (s.projects?.[0]?.name || '').split(' ')[0]).filter(Boolean)
+    )) as string[]];
+
     return (
-      <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', backgroundColor:'var(--bg-color)', paddingTop: '2rem', paddingBottom: '2rem'}}>
-        <div style={{display:'flex', flexDirection:'column', gap:'1.5rem', width:'100%', maxWidth:'650px', padding:'3rem', borderRadius:'12px', background:'var(--panel-bg)', border:'1px solid var(--border-color)', boxShadow:'0 10px 40px rgba(0,0,0,0.4)'}}>
-          <h1 style={{textAlign:'center', fontSize:'2rem', letterSpacing:'1px', marginBottom:'1rem', color:'var(--text-primary)'}}>GAK <span style={{color:'#3b82f6'}}>EROH</span></h1>
-          
-          <button className="btn" style={{padding:'1.2rem', fontSize:'1.1rem', display:'flex', justifyContent:'center', gap:'0.8rem', backgroundColor:'#2563eb', color:'white', fontWeight:'600', boxShadow:'0 4px 14px rgba(37, 99, 235, 0.3)'}} onClick={() => {
-            const name = prompt("Masukkan Nama Proyek Baru (Misal: Skripsi Bab 4):");
-            if (!name || name.trim() === '') {
-                alert("Pembuatan dibatalkan. Nama proyek wajib diisi.");
-                return;
-            }
-            setProjects([{ id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString() }]);
-            setProjectParameters([]); setDocuments([]); setTextChunks([]); setMacroThemes([]); setCodes([]); setAnnotations([]); setAnnotationHistories([]);
-            setAppScreen('workspace');
-          }}>📄 Ciptakan Proyek Baru</button>
+      <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', backgroundColor: themeAccent.bg, fontFamily:'Inter,system-ui,sans-serif', color:'white'}}>
 
-          <label className="btn btn-outline" style={{padding:'1rem', fontSize:'0.9rem', display:'flex', justifyContent:'center', cursor:'pointer', textAlign:'center', margin:0}}>
-            📁 Muat Berkas Workspace (.qprj / .json)
-            <input type="file" accept=".qprj,.json" style={{display:'none'}} onChange={loadProject} />
-          </label>
+        {/* ── TOP HEADER ── */}
+        <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'1rem 2rem', borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'0.75rem'}}>
+            <span style={{fontWeight:'700', fontSize:'1.2rem', letterSpacing:'-0.02em'}}>GAK EROH</span>
+            <span style={{color:'rgba(255,255,255,0.25)'}}>|</span>
+            <span style={{color:'rgba(255,255,255,0.5)', fontSize:'0.9rem'}}>Launcher Proyek</span>
+          </div>
+          <div style={{display:'flex', alignItems:'center', gap:'3rem'}}>
+            {[
+              {label:'TOTAL PROYEK', value: String(savedSessions.length)},
+              {label:'STATUS', value: savedSessions.length === 0 ? 'Siap memulai!' : 'Proyek tersimpan ✓', color: themeAccent.ring},
+              {label:'TEMA', value: visualTheme},
+            ].map(item => (
+              <div key={item.label} style={{textAlign:'center'}}>
+                <div style={{fontSize:'0.65rem', fontWeight:'600', letterSpacing:'0.1em', color:'rgba(255,255,255,0.35)', marginBottom:'0.3rem'}}>{item.label}</div>
+                <div style={{fontSize:'1.1rem', fontWeight:'700', color: item.color || 'white'}}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </header>
 
-          <div style={{marginTop:'2rem', width:'100%'}}>
-             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', borderBottom:'1px solid rgba(255,255,255,0.08)', paddingBottom:'0.8rem'}}>
-               <span style={{fontSize:'1rem', color:'var(--text-primary)', fontWeight:'500'}}>Riwayat Proyek Auto-Save</span>
-               {savedSessions.length > 0 && (
-                 <input 
-                   type="text" 
-                   value={searchQuery}
-                   onChange={e => setSearchQuery(e.target.value)}
-                   placeholder="Cari nama proyek..." 
-                   style={{padding:'0.4rem 0.8rem', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'6px', color:'var(--text-primary)', fontSize:'0.85rem', width:'200px'}}
-                 />
-               )}
-             </div>
+        {/* ── MAIN CANVAS ── */}
+        <main style={{flex:1, padding:'1.5rem 2rem', overflowY:'auto'}}>
+          {/* Canvas Title + Actions */}
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem'}}>
+            <h1 style={{fontSize:'1.5rem', fontWeight:'700', margin:0}}>Workspace GAK EROH</h1>
+            <div style={{display:'flex', gap:'0.75rem'}}>
+              <label style={{display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.5rem 1rem', borderRadius:'8px', cursor:'pointer', fontSize:'0.85rem', fontWeight:'500', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.7)'}}>
+                📁 Muat .qprj
+                <input type="file" accept=".qprj,.json" style={{display:'none'}} onChange={loadProject} />
+              </label>
+              <button
+                onClick={() => {
+                  const name = prompt('Masukkan Nama Proyek Baru:');
+                  if (!name?.trim()) { alert('Pembuatan dibatalkan.'); return; }
+                  setProjects([{ id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString() }]);
+                  setProjectParameters([]); setDocuments([]); setTextChunks([]); setMacroThemes([]); setCodes([]); setAnnotations([]); setAnnotationHistories([]);
+                  setAppScreen('workspace');
+                }}
+                style={{display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.5rem 1.25rem', borderRadius:'8px', fontWeight:'600', fontSize:'0.9rem', color:'white', background: themeAccent.pill, border:'none', cursor:'pointer', boxShadow:`0 4px 14px ${themeAccent.pill}66`}}
+              >
+                + Proyek Baru
+              </button>
+            </div>
+          </div>
 
-             {savedSessions.length === 0 ? (
-                <div style={{padding:'3rem 1rem', textAlign:'center', backgroundColor:'rgba(255,255,255,0.02)', borderRadius:'8px', border:'1px dashed rgba(255,255,255,0.1)'}}>
-                  <div style={{fontSize:'2rem', opacity:0.3, marginBottom:'1rem'}}>🗂️</div>
-                  <div style={{color:'var(--text-secondary)', fontSize:'0.9rem', lineHeight:'1.5'}}>
-                    Belum ada riwayat sesi analisis yang tersimpan.<br/>
-                    Data kualitatif yang Anda kerjakan akan difoto ('auto-save') secara berkala ke dalam memori peramban ini.
+          {/* Search */}
+          <div style={{marginBottom:'1.25rem'}}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="🔍  Cari nama proyek..."
+              style={{padding:'0.5rem 1rem', borderRadius:'8px', fontSize:'0.875rem', color:'white', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', outline:'none', width:'340px'}}
+            />
+          </div>
+
+          {/* Cards */}
+          {savedSessions.length === 0 ? (
+            <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'5rem 2rem', borderRadius:'16px', background:'rgba(255,255,255,0.03)', border:'1px dashed rgba(255,255,255,0.1)', textAlign:'center'}}>
+              <div style={{fontSize:'3rem', opacity:0.25, marginBottom:'1rem'}}>🗂️</div>
+              <div style={{color:'rgba(255,255,255,0.4)', fontSize:'0.9rem', lineHeight:'1.7'}}>
+                Belum ada proyek tersimpan.<br/>
+                Data yang Anda kerjakan akan disimpan otomatis ke memori peramban ini.
+              </div>
+            </div>
+          ) : (
+            <div style={{display:'grid', gridTemplateColumns: viewMode === 'Profesional' ? 'repeat(auto-fill, minmax(300px, 1fr))' : '1fr', gap: cardGap}}>
+              {filteredSessions.length === 0 && (
+                <div style={{gridColumn:'1 / -1', textAlign:'center', padding:'3rem', color:'rgba(255,255,255,0.35)', fontSize:'0.9rem'}}>Tidak ada proyek yang cocok dengan filter Anda.</div>
+              )}
+              {filteredSessions.map((session: any, idx: number) => {
+                const projId = session.projects?.[0]?.id;
+                const projName = session.projects?.[0]?.name || 'Untitled Project';
+                const docCount = session.documents?.length || 0;
+                const annCount = session.annotations?.length || 0;
+                const updatedRaw = session.projects?.[0]?.updatedAt || session.projects?.[0]?.createdAt;
+                const modLabel = updatedRaw ? new Date(updatedRaw).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : '—';
+                const pillLabel = projName.split(' ').slice(0,2).join(' ').toUpperCase().slice(0, 12);
+
+                return (
+                  <div
+                    key={`${projId}-${idx}`}
+                    className="project-card"
+                    style={{aspectRatio:'unset', textAlign:'left', padding:'1.25rem', flexDirection:'row', justifyContent:'flex-start', alignItems:'flex-start', position:'relative'}}
+                    onClick={() => {
+                      if (session.projects) setProjects(session.projects);
+                      if (session.projectParameters) setProjectParameters(session.projectParameters);
+                      if (session.documents) setDocuments(session.documents);
+                      if (session.textChunks) setTextChunks(session.textChunks);
+                      if (session.macroThemes) setMacroThemes(session.macroThemes);
+                      if (session.codes) setCodes(session.codes);
+                      if (session.annotations) setAnnotations(session.annotations);
+                      if (session.aiSuggestions) setAiSuggestions(session.aiSuggestions);
+                      if (session.annotationHistories) setAnnotationHistories(session.annotationHistories);
+                      setAppScreen('workspace');
+                    }}
+                  >
+                    <button
+                      className="delete-action"
+                      onClick={e => { e.stopPropagation(); if (!confirm(`Hapus "${projName}" secara permanen?`)) return; const k = projId || 'latest_session'; deleteFromIDB(k).catch(() => {}); setSavedSessions((prev: any[]) => prev.filter(x => x !== session)); }}
+                      style={{position:'absolute', top:'0.75rem', right:'0.75rem', background:'transparent', border:'none', cursor:'pointer', color:'#f87171', fontSize:'1rem', padding:'0.25rem 0.5rem', borderRadius:'6px'}}
+                      title="Hapus Proyek"
+                    >🗑</button>
+
+                    <span style={{fontSize:'1.75rem', marginRight:'1rem', marginTop:'0.1rem', color: themeAccent.ring, flexShrink:0}}>📂</span>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="text-truncate" style={{fontWeight:'700', fontSize:'1rem', marginBottom:'0.35rem'}} title={projName}>{projName}</div>
+                      <div style={{fontSize:'0.75rem', color:'rgba(255,255,255,0.4)', marginBottom:'0.75rem'}}>
+                        {docCount} Dokumen &bull; {annCount} Kutipan &bull; Modifikasi: {modLabel}
+                      </div>
+                      <span style={{display:'inline-block', padding:'0.2rem 0.7rem', borderRadius:'999px', fontSize:'0.7rem', fontWeight:'600', letterSpacing:'0.05em', border:`1px solid ${themeAccent.pill}`, color: themeAccent.ring}}>
+                        {pillLabel}
+                      </span>
+                    </div>
                   </div>
-                </div>
-             ) : (
-                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'1rem', maxHeight:'400px', overflowY:'auto', paddingRight:'0.5rem'}}>
-                  {filteredSessions.length === 0 && (
-                    <div style={{gridColumn:'1 / -1', padding:'2rem', textAlign:'center', color:'var(--text-secondary)', fontSize:'0.9rem'}}>Tidak ada proyek yang sesuai dengan pencarian Anda.</div>
-                  )}
-                  {filteredSessions.map((session, idx) => {
-                     const projId = session.projects?.[0]?.id;
-                     const projName = session.projects?.[0]?.name || 'Untitled Project';
-                     let timeLabel = 'Sesi Terakhir';
-                     if (session.projects?.[0]?.updatedAt) {
-                         timeLabel = new Date(session.projects[0].updatedAt).toLocaleString('id-ID', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
-                     } else if (session.projects?.[0]?.createdAt) {
-                         timeLabel = new Date(session.projects[0].createdAt).toLocaleString('id-ID', {day:'numeric', month:'short'});
-                     }
-                     
-                     return (
-                     <div key={`${projId ?? 'orphan'}-${idx}`} className="project-card" onClick={() => {
-                        if (session.projects) setProjects(session.projects);
-                        if (session.projectParameters) setProjectParameters(session.projectParameters);
-                        if (session.documents) setDocuments(session.documents);
-                        if (session.textChunks) setTextChunks(session.textChunks);
-                        if (session.macroThemes) setMacroThemes(session.macroThemes);
-                        if (session.codes) setCodes(session.codes);
-                        if (session.annotations) setAnnotations(session.annotations);
-                        if (session.aiSuggestions) setAiSuggestions(session.aiSuggestions);
-                        if (session.annotationHistories) setAnnotationHistories(session.annotationHistories);
-                        setAppScreen('workspace');
-                     }}>
-                        <div className="text-truncate" style={{width: '100%', fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.8rem'}} title={projName}>
-                          {projName}
-                        </div>
-                        
-                        <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.3rem', opacity: 0.8}}>
-                          <span>📄 {session.documents?.length || 0} Dokumen</span>
-                          <span>💬 {session.annotations?.length || 0} Kutipan</span>
-                        </div>
+                );
+              })}
+            </div>
+          )}
+        </main>
 
-                        <div style={{position: 'absolute', bottom: '1rem', fontSize: '0.65rem', opacity: 0.5}}>
-                          {timeLabel}
-                        </div>
+        {/* ── BOTTOM SETTINGS TOOLBAR ── */}
+        <footer style={{display:'flex', flexWrap:'wrap', alignItems:'center', gap:'1.5rem', padding:'0.875rem 2rem', borderTop:'1px solid rgba(255,255,255,0.07)', background:'rgba(0,0,0,0.3)'}}>
+          {/* Mode Tampilan */}
+          <div style={{display:'flex', alignItems:'center', gap:'0.6rem'}}>
+            <span style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.5)'}}>Mode Tampilan</span>
+            {(['Standar', 'Profesional'] as const).map(m => (
+              <button key={m} onClick={() => setViewMode(m)} style={{padding:'0.3rem 0.9rem', borderRadius:'8px', fontSize:'0.8rem', fontWeight:'600', cursor:'pointer', border: viewMode === m ? 'none' : '1px solid rgba(255,255,255,0.12)', background: viewMode === m ? themeAccent.pill : 'rgba(255,255,255,0.06)', color: viewMode === m ? 'white' : 'rgba(255,255,255,0.5)'}}>
+                {m}
+              </button>
+            ))}
+          </div>
 
-                        <button className="delete-action" onClick={(e) => { e.stopPropagation(); if (!confirm(`Hapus proyek "${projName}" secara permanen?`)) return; const k = projId || 'latest_session'; deleteFromIDB(k).catch(()=>{}); setSavedSessions(prev => prev.filter(x => x !== session)); }} style={{position: 'absolute', top: '0.5rem', right: '0.5rem', background:'transparent', border:'none', cursor:'pointer', color:'#f87171', fontSize:'1.1rem', padding:'0.4rem', borderRadius:'4px'}} title="Hapus Proyek secara Permanen">🗑</button>
-                     </div>
-                     );
-                  })}
-                </div>
-             )}
+          {/* Tema Visual */}
+          <div style={{display:'flex', alignItems:'center', gap:'0.6rem'}}>
+            <span style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.5)'}}>Tema Visual</span>
+            {([['Slate','#3b82f6'],['Emerald','#10b981'],['Indigo','#6366f1']] as const).map(([t,col]) => (
+              <button key={t} onClick={() => setVisualTheme(t as any)} style={{padding:'0.3rem 0.9rem', borderRadius:'8px', fontSize:'0.8rem', fontWeight:'600', cursor:'pointer', border: visualTheme === t ? 'none' : '1px solid rgba(255,255,255,0.12)', background: visualTheme === t ? col : 'rgba(255,255,255,0.06)', color: visualTheme === t ? 'white' : 'rgba(255,255,255,0.5)'}}>
+                {t}
+              </button>
+            ))}
           </div>
-          
-          {/* Reset settings */}
-          <div style={{marginTop:'1.5rem', borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:'1.5rem', display:'flex', justifyContent:'center'}}>
-            <button style={{background:'transparent', border:'none', cursor:'pointer', fontSize:'0.75rem', color:'var(--text-secondary)'}} onClick={() => {
-              if (!confirm('Reset semua pengaturan (API Key & Provider) ke default? Data proyek tidak dihapus.')) return;
-              localStorage.removeItem('app_apiKey');
-              localStorage.removeItem('app_apiProvider');
-              setApiKey('');
-              setApiProvider('gemini');
-            }}>⚙ Reset Pengaturan ke Default</button>
+
+          {/* Density Slider */}
+          <div style={{display:'flex', alignItems:'center', gap:'0.6rem'}}>
+            <span style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.5)'}}>Kerapatan Elemen</span>
+            <input type="range" min={10} max={50} value={density} onChange={e => setDensity(Number(e.target.value))} style={{accentColor: themeAccent.pill, width:'110px'}} />
+            <span style={{padding:'0.15rem 0.5rem', borderRadius:'5px', fontSize:'0.75rem', fontFamily:'monospace', background:'rgba(255,255,255,0.1)'}}>{density}</span>
           </div>
-        </div>
+
+          {/* Filter Dropdown */}
+          <div style={{display:'flex', alignItems:'center', gap:'0.6rem', marginLeft:'auto'}}>
+            <span style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.5)'}}>Filter Proyek</span>
+            <select value={projectThemeFilter} onChange={e => setProjectThemeFilter(e.target.value)} style={{padding:'0.35rem 0.9rem', borderRadius:'8px', fontSize:'0.8rem', color:'white', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', outline:'none', cursor:'pointer'}}>
+              {uniqueFilters.map(f => <option key={f} value={f} style={{background:'#1e293b'}}>{f}</option>)}
+            </select>
+          </div>
+        </footer>
       </div>
     );
   }
+
 
   return (
     <div className="workspace">
