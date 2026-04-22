@@ -751,8 +751,13 @@ export default function Home() {
                 const detected = detectLastSpeaker(chunk.content);
                 if (detected) lastSpeakerContext = detected;
                 setCodes([...newCodes]);
-                setAnnotations([...newAnns]);
-                setAiSuggestions([...newSuggestions]);
+                // Gunakan functional update agar perubahan user (terima/tolak saran)
+                // yang terjadi di tengah proses tidak ikut tertimpa snapshot loop
+                setAiSuggestions(prev => {
+                    const existingIds = new Set(prev.map((s: any) => s.id));
+                    const newOnes = newSuggestions.filter((s: any) => !existingIds.has(s.id));
+                    return [...prev, ...newOnes];
+                });
             } catch (chunkErr: any) {
                 console.warn(`Chunk ${chunk.sequenceNum} gagal diproses:`, chunkErr.message);
                 lastErrStr = chunkErr.message;
@@ -760,7 +765,14 @@ export default function Home() {
             }
         }
 
-        setCodes(newCodes); setAnnotations(newAnns); setAiSuggestions(newSuggestions);
+        setCodes(newCodes);
+        // Jangan timpa annotations — newAnns tidak pernah berubah selama loop
+        // Hanya tambahkan suggestions baru yang belum ada di state
+        setAiSuggestions(prev => {
+            const existingIds = new Set(prev.map((s: any) => s.id));
+            const newOnes = newSuggestions.filter((s: any) => !existingIds.has(s.id));
+            return [...prev, ...newOnes];
+        });
         if (successCount > 0) {
             setAnnotationHistories(prev => [...prev, { 
                 id: crypto.randomUUID(), 
