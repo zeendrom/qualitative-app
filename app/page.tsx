@@ -752,6 +752,7 @@ export default function Home() {
                 if (detected) lastSpeakerContext = detected;
                 setCodes([...newCodes]);
                 setAnnotations([...newAnns]);
+                setAiSuggestions([...newSuggestions]);
             } catch (chunkErr: any) {
                 console.warn(`Chunk ${chunk.sequenceNum} gagal diproses:`, chunkErr.message);
                 lastErrStr = chunkErr.message;
@@ -759,7 +760,7 @@ export default function Home() {
             }
         }
 
-        setCodes(newCodes); setAnnotations(newAnns);
+        setCodes(newCodes); setAnnotations(newAnns); setAiSuggestions(newSuggestions);
         if (successCount > 0) {
             setAnnotationHistories(prev => [...prev, { 
                 id: crypto.randomUUID(), 
