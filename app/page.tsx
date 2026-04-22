@@ -2528,6 +2528,87 @@ export default function Home() {
         );
       })()}
 
+      {/* ===== MODAL TERIMA SARAN AI ===== */}
+      {syncModalDraft && (() => {
+        const sug = syncModalDraft;
+        const code = codes.find(c => c.id === sug.codeId);
+        const chunk = textChunks.find(c => c.id === sug.chunkId);
+        return (
+          <div style={{position:'fixed', inset:0, zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', backgroundColor:'rgba(0,0,0,0.7)', backdropFilter:'blur(4px)'}} onClick={() => setSyncModalDraft(null)}>
+            <div style={{backgroundColor:'#0f172a', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'16px', padding:'2rem', width:'520px', maxWidth:'90vw', boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}} onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div style={{display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'1.5rem'}}>
+                <span style={{fontSize:'1.3rem'}}>✨</span>
+                <div>
+                  <div style={{fontWeight:'700', fontSize:'1rem'}}>Terima Saran AI</div>
+                  <div style={{fontSize:'0.75rem', color:'var(--text-secondary)'}}>Tinjau dan konfirmasi sebelum menjadi anotasi permanen</div>
+                </div>
+              </div>
+
+              {/* Kode badge */}
+              {code && (
+                <div style={{marginBottom:'1rem'}}>
+                  <span style={{fontSize:'0.7rem', color:'var(--text-secondary)', letterSpacing:'0.05em', display:'block', marginBottom:'0.4rem'}}>KODE</span>
+                  <span className="code-tag" style={{backgroundColor:`${code.color}20`, borderColor:code.color, color:code.color, padding:'0.3rem 0.7rem', fontSize:'0.85rem'}}>{code.name}</span>
+                </div>
+              )}
+
+              {/* Kutipan */}
+              <div style={{marginBottom:'1rem'}}>
+                <span style={{fontSize:'0.7rem', color:'var(--text-secondary)', letterSpacing:'0.05em', display:'block', marginBottom:'0.4rem'}}>KUTIPAN</span>
+                <div style={{backgroundColor:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', padding:'0.75rem', fontSize:'0.85rem', fontStyle:'italic', lineHeight:'1.6', color:'#e2e8f0'}}>
+                  "{sug.quote}"
+                </div>
+              </div>
+
+              {/* Rationale / Initial Nothing editable */}
+              <div style={{marginBottom:'1.5rem'}}>
+                <label style={{fontSize:'0.7rem', color:'var(--text-secondary)', letterSpacing:'0.05em', display:'block', marginBottom:'0.4rem'}}>INITIAL NOTHING / RASIONALISASI</label>
+                <textarea
+                  autoFocus
+                  value={syncModalText || sug.rationale}
+                  onChange={e => setSyncModalText(e.target.value)}
+                  rows={3}
+                  placeholder="Tulis atau revisi catatan analitis Anda di sini..."
+                  style={{width:'100%', backgroundColor:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'8px', padding:'0.75rem', fontSize:'0.85rem', color:'white', resize:'vertical', outline:'none', lineHeight:'1.6', boxSizing:'border-box'}}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div style={{display:'flex', gap:'0.75rem', justifyContent:'flex-end'}}>
+                <button
+                  className="btn-outline btn-small"
+                  style={{color:'var(--text-secondary)'}}
+                  onClick={() => setSyncModalDraft(null)}
+                >
+                  Batal
+                </button>
+                <button
+                  style={{backgroundColor:'#10b981', color:'white', border:'none', borderRadius:'8px', padding:'0.5rem 1.25rem', fontWeight:'600', cursor:'pointer', fontSize:'0.875rem'}}
+                  onClick={() => {
+                    const finalRationale = (syncModalText || sug.rationale).trim();
+                    const activeProtocol = projectParameters.find(p => p.isActive);
+                    // Pindahkan dari suggestions ke annotations permanen
+                    setAnnotations(prev => [...prev, {
+                      ...sug,
+                      id: crypto.randomUUID(),
+                      rationale: finalRationale,
+                      createdBy: 'MANUAL' as 'MANUAL',
+                      parameterVersionId: activeProtocol?.id || sug.parameterVersionId,
+                    }]);
+                    setAiSuggestions(prev => prev.filter(x => x.id !== sug.id));
+                    setSyncModalDraft(null);
+                    setSyncModalText('');
+                  }}
+                >
+                  ✔ Terima & Simpan
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
