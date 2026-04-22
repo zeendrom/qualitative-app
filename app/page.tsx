@@ -556,7 +556,10 @@ export default function Home() {
         
         // Pertahankan SEMUA anotasi yang sudah ada di database (Manual maupun AI sebelumnya) untuk skenario multi-layer coding
         let newAnns = [...annotations];
-        let newSuggestions = [...aiSuggestions];
+        // Mulai KOSONG — hanya lacak saran yang dibuat sesi auto-coding ini.
+        // Saran lama yang ada di state dibiarkan apa adanya; user tidak perlu
+        // khawatir perubahannya (terima/tolak) dioverwrite oleh loop yang sedang berjalan.
+        let newSuggestions: Annotation[] = [];
         const projId = projects.length > 0 ? projects[0].id : 'proj-1';
         let successCount = 0;
         let failCount = 0;
@@ -587,7 +590,11 @@ export default function Home() {
                 // Simpan hasil parsial yang sudah ada sebelum berhenti
                 setCodes([...newCodes]);
                 setAnalyzingChunkId(null);
-                setAiSuggestions([...newSuggestions]);
+                // Merge fungsional: hanya tambahkan saran baru sesi ini, jangan timpa state user
+                setAiSuggestions(prev => {
+                    const existingIds = new Set(prev.map((s: any) => s.id));
+                    return [...prev, ...newSuggestions.filter((s: any) => !existingIds.has(s.id))];
+                });
                 alert(`⛔ Dibatalkan. Hasil parsial dari ${successCount} segmen telah disimpan.`);
                 break;
             }
